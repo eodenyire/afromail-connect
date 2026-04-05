@@ -43,8 +43,8 @@ const SignOutButton = () => {
       Sign Out
     </button>
   );
-};
 
+const EmailSidebar = ({ activeProvider, onProviderChange, activeFolder, onFolderChange }: EmailSidebarProps) => {
   const connectedProviders = providers.filter(p => p.connected);
   const disconnectedProviders = providers.filter(p => !p.connected);
   const totalUnread = connectedProviders.reduce((sum, p) => sum + p.unread, 0);
