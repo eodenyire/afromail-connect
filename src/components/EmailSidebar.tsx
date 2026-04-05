@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Inbox, Star, Send, File, Trash2, Plus, Settings } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { Inbox, Star, Send, File, Trash2, Plus, Settings, LogOut } from "lucide-react";
 import { providers, type EmailProvider } from "@/data/mockEmails";
 import afromailLogo from "@/assets/afromail-logo.png";
 
@@ -31,6 +31,18 @@ const providerColorMap: Record<string, string> = {
   fastmail: 'bg-provider-fastmail',
   tutanota: 'bg-provider-tutanota',
 };
+
+const SignOutButton = () => {
+  const { signOut } = useAuth();
+  return (
+    <button
+      onClick={signOut}
+      className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
+    >
+      <LogOut size={16} />
+      Sign Out
+    </button>
+  );
 
 const EmailSidebar = ({ activeProvider, onProviderChange, activeFolder, onFolderChange }: EmailSidebarProps) => {
   const connectedProviders = providers.filter(p => p.connected);
@@ -139,12 +151,13 @@ const EmailSidebar = ({ activeProvider, onProviderChange, activeFolder, onFolder
         )}
       </div>
 
-      {/* Settings */}
-      <div className="p-3 border-t border-sidebar-border">
+      {/* Settings & Sign Out */}
+      <div className="p-3 border-t border-sidebar-border space-y-0.5">
         <button className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors">
           <Settings size={16} />
           Settings
         </button>
+        <SignOutButton />
       </div>
     </aside>
   );
