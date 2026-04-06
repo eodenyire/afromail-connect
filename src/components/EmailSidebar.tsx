@@ -9,6 +9,7 @@ interface EmailSidebarProps {
   onProviderChange: (provider: EmailProvider | 'all') => void;
   activeFolder: string;
   onFolderChange: (folder: string) => void;
+  onCompose: () => void;
 }
 
 const folders = [
@@ -59,7 +60,7 @@ const SignOutButton = () => {
   );
 };
 
-const EmailSidebar = ({ activeProvider, onProviderChange, activeFolder, onFolderChange }: EmailSidebarProps) => {
+const EmailSidebar = ({ activeProvider, onProviderChange, activeFolder, onFolderChange, onCompose }: EmailSidebarProps) => {
   const connectedProviders = providers.filter(p => p.connected);
   const disconnectedProviders = providers.filter(p => !p.connected);
   const totalUnread = connectedProviders.reduce((sum, p) => sum + p.unread, 0);
@@ -74,7 +75,7 @@ const EmailSidebar = ({ activeProvider, onProviderChange, activeFolder, onFolder
 
       {/* Compose */}
       <div className="p-3">
-        <button className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-lg py-2.5 font-semibold text-sm hover:opacity-90 transition-opacity">
+        <button onClick={onCompose} className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-lg py-2.5 font-semibold text-sm hover:opacity-90 transition-opacity">
           <Plus size={16} />
           Compose
         </button>
