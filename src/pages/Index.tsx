@@ -3,6 +3,7 @@ import EmailSidebar from "@/components/EmailSidebar";
 import EmailList from "@/components/EmailList";
 import EmailDetail from "@/components/EmailDetail";
 import EmailSearch from "@/components/EmailSearch";
+import ComposeEmail from "@/components/ComposeEmail";
 import { mockEmails, type EmailProvider } from "@/data/mockEmails";
 import { Menu } from "lucide-react";
 
@@ -12,6 +13,7 @@ const Index = () => {
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [composeOpen, setComposeOpen] = useState(false);
 
   const filteredEmails = useMemo(() => {
     let emails = mockEmails;
@@ -55,6 +57,7 @@ const Index = () => {
           onProviderChange={(p) => { setActiveProvider(p); setSidebarOpen(false); }}
           activeFolder={activeFolder}
           onFolderChange={(f) => { setActiveFolder(f); setSidebarOpen(false); }}
+          onCompose={() => { setComposeOpen(true); setSidebarOpen(false); }}
         />
       </div>
 
@@ -87,6 +90,9 @@ const Index = () => {
           onBack={() => setSelectedEmailId(null)}
         />
       </div>
+
+      {/* Compose modal */}
+      <ComposeEmail open={composeOpen} onClose={() => setComposeOpen(false)} />
     </div>
   );
 };
