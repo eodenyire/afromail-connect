@@ -43,6 +43,7 @@ const SignOutButton = () => {
       Sign Out
     </button>
   );
+};
 
 const EmailSidebar = ({ activeProvider, onProviderChange, activeFolder, onFolderChange }: EmailSidebarProps) => {
   const connectedProviders = providers.filter(p => p.connected);
