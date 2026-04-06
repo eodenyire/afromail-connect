@@ -33,6 +33,19 @@ const providerColorMap: Record<string, string> = {
   tutanota: 'bg-provider-tutanota',
 };
 
+const SettingsButton = () => {
+  const navigate = useNavigate();
+  return (
+    <button
+      onClick={() => navigate("/profile")}
+      className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
+    >
+      <Settings size={16} />
+      Profile
+    </button>
+  );
+};
+
 const SignOutButton = () => {
   const { signOut } = useAuth();
   return (
