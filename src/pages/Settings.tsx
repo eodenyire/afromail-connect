@@ -63,7 +63,7 @@ const Settings = () => {
     const fetchSettings = async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("connected_accounts")
+        .select("connected_accounts, notif_email, notif_desktop, notif_sound, notif_security, notif_marketing, notif_digest")
         .eq("user_id", user.id)
         .single();
 
