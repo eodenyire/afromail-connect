@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Plus, Trash2, Bell, BellOff, Mail, Shield, Globe } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Bell, BellOff, Mail, Shield, Globe, Sun, Moon, Monitor, Palette } from "lucide-react";
+import { useTheme } from "next-themes";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { providers, type EmailProvider } from "@/data/mockEmails";
@@ -54,7 +55,8 @@ const Settings = () => {
   const [notificationPrefs, setNotificationPrefs] = useState<NotificationPrefs>(defaultNotificationPrefs);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<"accounts" | "notifications">("accounts");
+  const [activeTab, setActiveTab] = useState<"accounts" | "notifications" | "appearance">("accounts");
+  const { theme, setTheme } = useTheme();
 
   useEffect(() => {
     if (!user) return;
@@ -187,6 +189,17 @@ const Settings = () => {
           >
             <Bell size={16} />
             Notifications
+          </button>
+          <button
+            onClick={() => setActiveTab("appearance")}
+            className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeTab === "appearance"
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Palette size={16} />
+            Theme
           </button>
         </div>
 
