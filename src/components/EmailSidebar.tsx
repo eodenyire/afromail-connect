@@ -37,13 +37,22 @@ const providerColorMap: Record<string, string> = {
 const SettingsButton = () => {
   const navigate = useNavigate();
   return (
-    <button
-      onClick={() => navigate("/profile")}
-      className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
-    >
-      <Settings size={16} />
-      Profile
-    </button>
+    <div className="space-y-0.5">
+      <button
+        onClick={() => navigate("/profile")}
+        className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
+      >
+        <User size={16} />
+        Profile
+      </button>
+      <button
+        onClick={() => navigate("/settings")}
+        className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
+      >
+        <Settings size={16} />
+        Settings
+      </button>
+    </div>
   );
 };
 
