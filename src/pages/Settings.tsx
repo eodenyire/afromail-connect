@@ -473,8 +473,10 @@ const Settings = () => {
                     }
                     setSaving(false);
                   }}
+                  disabled={saving}
+                  className="w-full bg-primary text-primary-foreground rounded-lg py-2.5 font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
                 >
-                  Save Preferences
+                  {saving ? "Saving..." : "Save Preferences"}
                 </button>
               </div>
             </div>
