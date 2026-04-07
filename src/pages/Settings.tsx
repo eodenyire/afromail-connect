@@ -86,6 +86,18 @@ const Settings = () => {
             .map((p) => ({ provider: p.id, email: `you@${p.id}.com`, connected: true }))
         );
       }
+
+      if (data) {
+        setNotificationPrefs({
+          emailNotifications: data.notif_email ?? true,
+          desktopNotifications: data.notif_desktop ?? true,
+          soundAlerts: data.notif_sound ?? false,
+          digestFrequency: (data.notif_digest as NotificationPrefs["digestFrequency"]) ?? "realtime",
+          marketingEmails: data.notif_marketing ?? false,
+          securityAlerts: data.notif_security ?? true,
+        });
+      }
+
       setLoading(false);
     };
     fetchSettings();
