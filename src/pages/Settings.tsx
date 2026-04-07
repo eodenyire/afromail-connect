@@ -449,6 +449,48 @@ const Settings = () => {
             </div>
           </div>
         )}
+
+        {activeTab === "appearance" && (
+          <div className="space-y-6">
+            <div className="bg-card border border-border rounded-xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-border">
+                <h2 className="text-sm font-semibold text-foreground">Appearance</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Choose your preferred theme
+                </p>
+              </div>
+              <div className="p-5 grid grid-cols-3 gap-3">
+                {([
+                  { value: "light", label: "Light", icon: Sun },
+                  { value: "dark", label: "Dark", icon: Moon },
+                  { value: "system", label: "System", icon: Monitor },
+                ] as const).map(({ value, label, icon: Icon }) => (
+                  <button
+                    key={value}
+                    onClick={() => setTheme(value)}
+                    className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
+                      theme === value
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-muted-foreground/30 hover:bg-muted/50"
+                    }`}
+                  >
+                    <Icon
+                      size={24}
+                      className={theme === value ? "text-primary" : "text-muted-foreground"}
+                    />
+                    <span
+                      className={`text-xs font-medium ${
+                        theme === value ? "text-primary" : "text-muted-foreground"
+                      }`}
+                    >
+                      {label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
