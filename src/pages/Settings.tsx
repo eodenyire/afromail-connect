@@ -94,7 +94,7 @@ const Settings = () => {
     setSaving(true);
     const { error } = await supabase
       .from("profiles")
-      .update({ connected_accounts: connectedAccounts as unknown as Record<string, unknown>[] })
+      .update({ connected_accounts: JSON.parse(JSON.stringify(connectedAccounts)) })
       .eq("user_id", user.id);
 
     if (error) {

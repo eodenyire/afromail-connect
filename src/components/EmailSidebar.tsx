@@ -1,6 +1,6 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { Inbox, Star, Send, File, Trash2, Plus, Settings, LogOut } from "lucide-react";
+import { Inbox, Star, Send, File, Trash2, Plus, Settings, LogOut, User } from "lucide-react";
 import { providers, type EmailProvider } from "@/data/mockEmails";
 import afromailLogo from "@/assets/afromail-logo.png";
 
