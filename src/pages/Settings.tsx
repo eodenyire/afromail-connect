@@ -452,8 +452,27 @@ const Settings = () => {
 
               <div className="px-5 py-3 border-t border-border">
                 <button
-                  onClick={() => toast.success("Notification preferences saved!")}
-                  className="w-full bg-primary text-primary-foreground rounded-lg py-2.5 font-semibold text-sm hover:opacity-90 transition-opacity"
+                  onClick={async () => {
+                    if (!user) return;
+                    setSaving(true);
+                    const { error } = await supabase
+                      .from("profiles")
+                      .update({
+                        notif_email: notificationPrefs.emailNotifications,
+                        notif_desktop: notificationPrefs.desktopNotifications,
+                        notif_sound: notificationPrefs.soundAlerts,
+                        notif_security: notificationPrefs.securityAlerts,
+                        notif_marketing: notificationPrefs.marketingEmails,
+                        notif_digest: notificationPrefs.digestFrequency,
+                      })
+                      .eq("user_id", user.id);
+                    if (error) {
+                      toast.error("Failed to save notification preferences");
+                    } else {
+                      toast.success("Notification preferences saved!");
+                    }
+                    setSaving(false);
+                  }}
                 >
                   Save Preferences
                 </button>
