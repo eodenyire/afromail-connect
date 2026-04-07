@@ -63,7 +63,7 @@ const Settings = () => {
     const fetchSettings = async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("connected_accounts")
+        .select("connected_accounts, notif_email, notif_desktop, notif_sound, notif_security, notif_marketing, notif_digest")
         .eq("user_id", user.id)
         .single();
 
@@ -86,6 +86,18 @@ const Settings = () => {
             .map((p) => ({ provider: p.id, email: `you@${p.id}.com`, connected: true }))
         );
       }
+
+      if (data) {
+        setNotificationPrefs({
+          emailNotifications: data.notif_email ?? true,
+          desktopNotifications: data.notif_desktop ?? true,
+          soundAlerts: data.notif_sound ?? false,
+          digestFrequency: (data.notif_digest as NotificationPrefs["digestFrequency"]) ?? "realtime",
+          marketingEmails: data.notif_marketing ?? false,
+          securityAlerts: data.notif_security ?? true,
+        });
+      }
+
       setLoading(false);
     };
     fetchSettings();
@@ -440,10 +452,31 @@ const Settings = () => {
 
               <div className="px-5 py-3 border-t border-border">
                 <button
-                  onClick={() => toast.success("Notification preferences saved!")}
-                  className="w-full bg-primary text-primary-foreground rounded-lg py-2.5 font-semibold text-sm hover:opacity-90 transition-opacity"
+                  onClick={async () => {
+                    if (!user) return;
+                    setSaving(true);
+                    const { error } = await supabase
+                      .from("profiles")
+                      .update({
+                        notif_email: notificationPrefs.emailNotifications,
+                        notif_desktop: notificationPrefs.desktopNotifications,
+                        notif_sound: notificationPrefs.soundAlerts,
+                        notif_security: notificationPrefs.securityAlerts,
+                        notif_marketing: notificationPrefs.marketingEmails,
+                        notif_digest: notificationPrefs.digestFrequency,
+                      })
+                      .eq("user_id", user.id);
+                    if (error) {
+                      toast.error("Failed to save notification preferences");
+                    } else {
+                      toast.success("Notification preferences saved!");
+                    }
+                    setSaving(false);
+                  }}
+                  disabled={saving}
+                  className="w-full bg-primary text-primary-foreground rounded-lg py-2.5 font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
                 >
-                  Save Preferences
+                  {saving ? "Saving..." : "Save Preferences"}
                 </button>
               </div>
             </div>

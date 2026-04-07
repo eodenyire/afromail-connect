@@ -21,6 +21,12 @@ export type Database = {
           created_at: string
           display_name: string | null
           id: string
+          notif_desktop: boolean
+          notif_digest: string
+          notif_email: boolean
+          notif_marketing: boolean
+          notif_security: boolean
+          notif_sound: boolean
           updated_at: string
           user_id: string
         }
@@ -30,6 +36,12 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id?: string
+          notif_desktop?: boolean
+          notif_digest?: string
+          notif_email?: boolean
+          notif_marketing?: boolean
+          notif_security?: boolean
+          notif_sound?: boolean
           updated_at?: string
           user_id: string
         }
@@ -39,6 +51,12 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id?: string
+          notif_desktop?: boolean
+          notif_digest?: string
+          notif_email?: boolean
+          notif_marketing?: boolean
+          notif_security?: boolean
+          notif_sound?: boolean
           updated_at?: string
           user_id?: string
         }
