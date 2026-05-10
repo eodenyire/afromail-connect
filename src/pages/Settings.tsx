@@ -69,7 +69,7 @@ const Settings = () => {
     if (!user) return;
     const { data, error } = await supabase
       .from("email_accounts")
-      .select("id, provider, email_address, status, connection_type")
+      .select("id, provider, email_address, status, connection_type, last_sync_at, last_error")
       .eq("user_id", user.id)
       .order("created_at", { ascending: true });
     if (error) {
@@ -83,6 +83,9 @@ const Settings = () => {
         email: a.email_address,
         connected: a.status === "connected",
         connection_type: a.connection_type,
+        status: a.status as ConnectedAccount["status"],
+        last_sync_at: a.last_sync_at,
+        last_error: a.last_error,
       })),
     );
   }, [user]);
