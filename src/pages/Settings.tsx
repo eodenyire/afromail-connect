@@ -16,6 +16,9 @@ interface ConnectedAccount {
   email: string;
   connected: boolean;
   connection_type: string;
+  status: "pending" | "connected" | "error" | "disconnected";
+  last_sync_at: string | null;
+  last_error: string | null;
 }
 
 interface NotificationPrefs {
