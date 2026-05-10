@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Plus, Trash2, Bell, BellOff, Mail, Shield, Globe, Sun, Moon, Monitor, Palette, RefreshCw, AlertTriangle, KeyRound, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Bell, BellOff, Mail, Shield, Globe, Sun, Moon, Monitor, Palette, RefreshCw, AlertTriangle, KeyRound, CheckCircle2, RotateCw } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useTheme } from "next-themes";
 import { useNavigate } from "react-router-dom";
@@ -64,6 +64,7 @@ const Settings = () => {
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<"accounts" | "notifications" | "appearance">("accounts");
   const [dialogProvider, setDialogProvider] = useState<EmailProvider | null>(null);
+  const [syncingIds, setSyncingIds] = useState<Set<string>>(new Set());
   const { theme, setTheme } = useTheme();
 
   const loadAccounts = useCallback(async () => {
@@ -138,6 +139,24 @@ const Settings = () => {
 
   const handleAddAccount = (providerId: EmailProvider) => {
     setDialogProvider(providerId);
+  };
+
+  const handleSyncNow = async (account: ConnectedAccount) => {
+    setSyncingIds((s) => new Set(s).add(account.id));
+    const { data, error } = await supabase.functions.invoke("email-sync-account", {
+      body: { account_id: account.id },
+    });
+    setSyncingIds((s) => {
+      const n = new Set(s);
+      n.delete(account.id);
+      return n;
+    });
+    if (error || (data as { error?: string })?.error) {
+      toast.error((data as { error?: string })?.error ?? error?.message ?? "Sync failed");
+      return;
+    }
+    toast.success(`${account.email} synced`);
+    await loadAccounts();
   };
 
   const availableProviders = providers.filter(
@@ -296,6 +315,16 @@ const Settings = () => {
                           >
                             <RefreshCw size={12} />
                             Reconnect
+                          </button>
+                        )}
+                        {account.connected && (
+                          <button
+                            onClick={() => handleSyncNow(account)}
+                            disabled={syncingIds.has(account.id)}
+                            className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
+                            title="Sync now"
+                          >
+                            <RotateCw size={14} className={syncingIds.has(account.id) ? "animate-spin" : ""} />
                           </button>
                         )}
                         <button
