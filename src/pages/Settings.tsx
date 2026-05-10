@@ -59,36 +59,39 @@ const Settings = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<"accounts" | "notifications" | "appearance">("accounts");
+  const [dialogProvider, setDialogProvider] = useState<EmailProvider | null>(null);
   const { theme, setTheme } = useTheme();
+
+  const loadAccounts = useCallback(async () => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from("email_accounts")
+      .select("id, provider, email_address, status, connection_type")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: true });
+    if (error) {
+      toast.error("Could not load connected accounts");
+      return;
+    }
+    setConnectedAccounts(
+      (data ?? []).map((a) => ({
+        id: a.id,
+        provider: a.provider as EmailProvider,
+        email: a.email_address,
+        connected: a.status === "connected",
+        connection_type: a.connection_type,
+      })),
+    );
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
     const fetchSettings = async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("connected_accounts, notif_email, notif_desktop, notif_sound, notif_security, notif_marketing, notif_digest")
+        .select("notif_email, notif_desktop, notif_sound, notif_security, notif_marketing, notif_digest")
         .eq("user_id", user.id)
         .single();
-
-      if (data?.connected_accounts) {
-        const accounts = data.connected_accounts as unknown as ConnectedAccount[];
-        if (Array.isArray(accounts) && accounts.length > 0) {
-          setConnectedAccounts(accounts);
-        } else {
-          // Initialize from mock providers
-          setConnectedAccounts(
-            providers
-              .filter((p) => p.connected)
-              .map((p) => ({ provider: p.id, email: `you@${p.id}.com`, connected: true }))
-          );
-        }
-      } else {
-        setConnectedAccounts(
-          providers
-            .filter((p) => p.connected)
-            .map((p) => ({ provider: p.id, email: `you@${p.id}.com`, connected: true }))
-        );
-      }
 
       if (data) {
         setNotificationPrefs({
@@ -100,61 +103,40 @@ const Settings = () => {
           securityAlerts: data.notif_security ?? true,
         });
       }
-
+      await loadAccounts();
       setLoading(false);
     };
     fetchSettings();
-  }, [user]);
+  }, [user, loadAccounts]);
 
-  const handleSaveAccounts = async () => {
-    if (!user) return;
-    setSaving(true);
+  const handleToggleStatus = async (account: ConnectedAccount) => {
+    const next = account.connected ? "disconnected" : "connected";
     const { error } = await supabase
-      .from("profiles")
-      .update({ connected_accounts: JSON.parse(JSON.stringify(connectedAccounts)) })
-      .eq("user_id", user.id);
-
-    if (error) {
-      toast.error("Failed to save account settings");
-    } else {
-      toast.success("Account settings saved!");
-    }
-    setSaving(false);
+      .from("email_accounts")
+      .update({ status: next })
+      .eq("id", account.id);
+    if (error) return toast.error("Update failed");
+    await loadAccounts();
   };
 
-  const handleDisconnect = (provider: EmailProvider) => {
-    setConnectedAccounts((prev) =>
-      prev.map((a) => (a.provider === provider ? { ...a, connected: false } : a))
-    );
-  };
-
-  const handleReconnect = (provider: EmailProvider) => {
-    setConnectedAccounts((prev) =>
-      prev.map((a) => (a.provider === provider ? { ...a, connected: true } : a))
-    );
+  const handleRemoveAccount = async (account: ConnectedAccount) => {
+    const { error } = await supabase
+      .from("email_accounts")
+      .delete()
+      .eq("id", account.id);
+    if (error) return toast.error("Remove failed");
+    toast.success("Account removed");
+    await loadAccounts();
   };
 
   const handleAddAccount = (providerId: EmailProvider) => {
-    const existing = connectedAccounts.find((a) => a.provider === providerId);
-    if (existing) {
-      handleReconnect(providerId);
-    } else {
-      setConnectedAccounts((prev) => [
-        ...prev,
-        { provider: providerId, email: `you@${providerId}.com`, connected: true },
-      ]);
-    }
-    toast.success(`${providerId.charAt(0).toUpperCase() + providerId.slice(1)} account added`);
-  };
-
-  const handleRemoveAccount = (provider: EmailProvider) => {
-    setConnectedAccounts((prev) => prev.filter((a) => a.provider !== provider));
-    toast.success("Account removed");
+    setDialogProvider(providerId);
   };
 
   const availableProviders = providers.filter(
-    (p) => !connectedAccounts.find((a) => a.provider === p.id)
+    (p) => !connectedAccounts.find((a) => a.provider === p.id && a.connected),
   );
+
 
   if (loading) {
     return (
