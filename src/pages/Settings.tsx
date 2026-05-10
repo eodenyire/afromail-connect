@@ -241,25 +241,15 @@ const Settings = () => {
                         {account.connected ? "Active" : "Paused"}
                       </span>
                       <div className="flex items-center gap-1">
-                        {account.connected ? (
-                          <button
-                            onClick={() => handleDisconnect(account.provider)}
-                            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                            title="Pause account"
-                          >
-                            <BellOff size={14} />
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleReconnect(account.provider)}
-                            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                            title="Reconnect"
-                          >
-                            <Bell size={14} />
-                          </button>
-                        )}
                         <button
-                          onClick={() => handleRemoveAccount(account.provider)}
+                          onClick={() => handleToggleStatus(account)}
+                          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                          title={account.connected ? "Pause account" : "Reactivate"}
+                        >
+                          {account.connected ? <BellOff size={14} /> : <Bell size={14} />}
+                        </button>
+                        <button
+                          onClick={() => handleRemoveAccount(account)}
                           className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                           title="Remove account"
                         >
@@ -271,18 +261,9 @@ const Settings = () => {
                 })}
                 {connectedAccounts.length === 0 && (
                   <div className="px-5 py-8 text-center text-sm text-muted-foreground">
-                    No accounts connected yet
+                    No accounts connected yet — add one below.
                   </div>
                 )}
-              </div>
-              <div className="px-5 py-3 border-t border-border">
-                <button
-                  onClick={handleSaveAccounts}
-                  disabled={saving}
-                  className="w-full bg-primary text-primary-foreground rounded-lg py-2.5 font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
-                >
-                  {saving ? "Saving..." : "Save Changes"}
-                </button>
               </div>
             </div>
 
