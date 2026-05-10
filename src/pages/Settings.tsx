@@ -64,6 +64,7 @@ const Settings = () => {
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<"accounts" | "notifications" | "appearance">("accounts");
   const [dialogProvider, setDialogProvider] = useState<EmailProvider | null>(null);
+  const [syncingIds, setSyncingIds] = useState<Set<string>>(new Set());
   const { theme, setTheme } = useTheme();
 
   const loadAccounts = useCallback(async () => {
