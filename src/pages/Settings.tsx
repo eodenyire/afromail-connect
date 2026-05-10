@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, Plus, Trash2, Bell, BellOff, Mail, Shield, Globe, Sun, Moon, Monitor, Palette } from "lucide-react";
@@ -7,12 +7,15 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { providers, type EmailProvider } from "@/data/mockEmails";
 import { Switch } from "@/components/ui/switch";
+import { ConnectAccountDialog } from "@/components/ConnectAccountDialog";
 import afromailLogo from "@/assets/afromail-logo.png";
 
 interface ConnectedAccount {
+  id: string;
   provider: EmailProvider;
   email: string;
   connected: boolean;
+  connection_type: string;
 }
 
 interface NotificationPrefs {
