@@ -317,6 +317,16 @@ const Settings = () => {
                             Reconnect
                           </button>
                         )}
+                        {account.connected && (
+                          <button
+                            onClick={() => handleSyncNow(account)}
+                            disabled={syncingIds.has(account.id)}
+                            className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
+                            title="Sync now"
+                          >
+                            <RotateCw size={14} className={syncingIds.has(account.id) ? "animate-spin" : ""} />
+                          </button>
+                        )}
                         <button
                           onClick={() => handleToggleStatus(account)}
                           className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
