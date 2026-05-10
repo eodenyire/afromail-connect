@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Plus, Trash2, Bell, BellOff, Mail, Shield, Globe, Sun, Moon, Monitor, Palette } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Bell, BellOff, Mail, Shield, Globe, Sun, Moon, Monitor, Palette, RefreshCw, AlertTriangle, KeyRound, CheckCircle2 } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
 import { useTheme } from "next-themes";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -16,6 +17,9 @@ interface ConnectedAccount {
   email: string;
   connected: boolean;
   connection_type: string;
+  status: "pending" | "connected" | "error" | "disconnected";
+  last_sync_at: string | null;
+  last_error: string | null;
 }
 
 interface NotificationPrefs {
@@ -66,7 +70,7 @@ const Settings = () => {
     if (!user) return;
     const { data, error } = await supabase
       .from("email_accounts")
-      .select("id, provider, email_address, status, connection_type")
+      .select("id, provider, email_address, status, connection_type, last_sync_at, last_error")
       .eq("user_id", user.id)
       .order("created_at", { ascending: true });
     if (error) {
@@ -80,6 +84,9 @@ const Settings = () => {
         email: a.email_address,
         connected: a.status === "connected",
         connection_type: a.connection_type,
+        status: a.status as ConnectedAccount["status"],
+        last_sync_at: a.last_sync_at,
+        last_error: a.last_error,
       })),
     );
   }, [user]);
@@ -213,34 +220,84 @@ const Settings = () => {
               <div className="divide-y divide-border">
                 {connectedAccounts.map((account) => {
                   const providerInfo = providers.find((p) => p.id === account.provider);
+                  const errText = (account.last_error || "").toLowerCase();
+                  const needsPassword =
+                    account.status === "error" &&
+                    (account.connection_type === "imap" ||
+                      errText.includes("password") ||
+                      errText.includes("auth"));
+                  const failed = account.status === "error" && !needsPassword;
+                  const disconnected = account.status === "disconnected";
+                  const showReconnect = needsPassword || failed || disconnected;
+
+                  const statusStyle =
+                    needsPassword
+                      ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                      : failed
+                      ? "bg-destructive/10 text-destructive"
+                      : disconnected
+                      ? "bg-muted text-muted-foreground"
+                      : "bg-secondary/10 text-secondary";
+                  const statusLabel =
+                    needsPassword ? "Needs app password"
+                    : failed ? "Failed"
+                    : disconnected ? "Paused"
+                    : "Connected";
+                  const StatusIcon =
+                    needsPassword ? KeyRound
+                    : failed ? AlertTriangle
+                    : disconnected ? BellOff
+                    : CheckCircle2;
+
+                  const lastSync = account.last_sync_at
+                    ? `${formatDistanceToNow(new Date(account.last_sync_at))} ago`
+                    : "Never synced";
+
                   return (
                     <div
-                      key={account.provider}
-                      className="flex items-center gap-3 px-5 py-3.5"
+                      key={account.id}
+                      className="flex items-start gap-3 px-5 py-3.5"
                     >
                       <span
-                        className={`w-8 h-8 rounded-full ${providerColorMap[account.provider] || "bg-muted"} flex items-center justify-center text-sm`}
+                        className={`w-8 h-8 mt-0.5 rounded-full ${providerColorMap[account.provider] || "bg-muted"} flex items-center justify-center text-sm shrink-0`}
                       >
                         {providerInfo?.icon || "📧"}
                       </span>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-foreground">
-                          {providerInfo?.name || account.provider}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-medium text-foreground truncate">
+                            {providerInfo?.name || account.provider}
+                          </span>
+                          <span
+                            className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${statusStyle}`}
+                          >
+                            <StatusIcon size={10} />
+                            {statusLabel}
+                          </span>
                         </div>
                         <div className="text-xs text-muted-foreground truncate">
                           {account.email}
                         </div>
+                        <div className="text-[11px] text-muted-foreground mt-0.5">
+                          Last sync: {lastSync}
+                          {account.last_error && (
+                            <span className="ml-2 text-destructive/80" title={account.last_error}>
+                              · {account.last_error.slice(0, 40)}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <span
-                        className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                          account.connected
-                            ? "bg-secondary/10 text-secondary"
-                            : "bg-destructive/10 text-destructive"
-                        }`}
-                      >
-                        {account.connected ? "Active" : "Paused"}
-                      </span>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 shrink-0">
+                        {showReconnect && (
+                          <button
+                            onClick={() => setDialogProvider(account.provider)}
+                            className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                            title="Reconnect"
+                          >
+                            <RefreshCw size={12} />
+                            Reconnect
+                          </button>
+                        )}
                         <button
                           onClick={() => handleToggleStatus(account)}
                           className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
