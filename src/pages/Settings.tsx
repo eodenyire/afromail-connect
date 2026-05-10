@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Plus, Trash2, Bell, BellOff, Mail, Shield, Globe, Sun, Moon, Monitor, Palette, RefreshCw, AlertTriangle, KeyRound, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Bell, BellOff, Mail, Shield, Globe, Sun, Moon, Monitor, Palette, RefreshCw, AlertTriangle, KeyRound, CheckCircle2, RotateCw } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useTheme } from "next-themes";
 import { useNavigate } from "react-router-dom";
