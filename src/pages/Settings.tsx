@@ -141,6 +141,24 @@ const Settings = () => {
     setDialogProvider(providerId);
   };
 
+  const handleSyncNow = async (account: ConnectedAccount) => {
+    setSyncingIds((s) => new Set(s).add(account.id));
+    const { data, error } = await supabase.functions.invoke("email-sync-account", {
+      body: { account_id: account.id },
+    });
+    setSyncingIds((s) => {
+      const n = new Set(s);
+      n.delete(account.id);
+      return n;
+    });
+    if (error || (data as { error?: string })?.error) {
+      toast.error((data as { error?: string })?.error ?? error?.message ?? "Sync failed");
+      return;
+    }
+    toast.success(`${account.email} synced`);
+    await loadAccounts();
+  };
+
   const availableProviders = providers.filter(
     (p) => !connectedAccounts.find((a) => a.provider === p.id && a.connected),
   );
