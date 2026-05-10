@@ -491,6 +491,13 @@ const Settings = () => {
           </div>
         )}
       </div>
+
+      <ConnectAccountDialog
+        open={dialogProvider !== null}
+        onOpenChange={(o) => { if (!o) setDialogProvider(null); }}
+        provider={dialogProvider}
+        onConnected={loadAccounts}
+      />
     </div>
   );
 };
