@@ -1,4 +1,4 @@
-import { corsHeaders } from "npm:@supabase/supabase-js@2.95.0/cors";
+import { corsHeaders } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.95.0";
 
 // Exchanges OAuth code for tokens and stores them in email_accounts.
