@@ -150,30 +150,40 @@ const Index = () => {
 
   const handleDeselectAll = useCallback(() => setSelectedIds(new Set()), []);
 
-  const handleBulkMarkRead = useCallback(() => {
+  const handleBulkMarkRead = useCallback(async () => {
+    const ids = Array.from(selectedIds);
     setEmails(prev => prev.map(e => selectedIds.has(e.id) ? { ...e, read: true } : e));
-    toast.success(`${selectedIds.size} email(s) marked as read`);
     setSelectedIds(new Set());
+    await supabase.from("messages").update({ read: true }).in("id", ids);
+    toast.success(`${ids.length} marked as read`);
   }, [selectedIds]);
 
-  const handleBulkMarkUnread = useCallback(() => {
+  const handleBulkMarkUnread = useCallback(async () => {
+    const ids = Array.from(selectedIds);
     setEmails(prev => prev.map(e => selectedIds.has(e.id) ? { ...e, read: false } : e));
-    toast.success(`${selectedIds.size} email(s) marked as unread`);
     setSelectedIds(new Set());
+    await supabase.from("messages").update({ read: false }).in("id", ids);
+    toast.success(`${ids.length} marked as unread`);
   }, [selectedIds]);
 
-  const handleBulkStar = useCallback(() => {
+  const handleBulkStar = useCallback(async () => {
+    const targets = emails.filter(e => selectedIds.has(e.id));
     setEmails(prev => prev.map(e => selectedIds.has(e.id) ? { ...e, starred: !e.starred } : e));
-    toast.success(`${selectedIds.size} email(s) star toggled`);
     setSelectedIds(new Set());
-  }, [selectedIds]);
+    await Promise.all(targets.map(e =>
+      supabase.from("messages").update({ starred: !e.starred }).eq("id", e.id),
+    ));
+    toast.success(`${targets.length} star toggled`);
+  }, [selectedIds, emails]);
 
-  const handleBulkDelete = useCallback(() => {
+  const handleBulkDelete = useCallback(async () => {
+    const ids = Array.from(selectedIds);
     setEmails(prev => prev.filter(e => !selectedIds.has(e.id)));
-    toast.success(`${selectedIds.size} email(s) deleted`);
     if (selectedEmailId && selectedIds.has(selectedEmailId)) setSelectedEmailId(null);
     setSelectedIds(new Set());
-  }, [selectedIds, selectedEmailId]);
+    await supabase.from("messages").delete().in("id", ids);
+    toast.success(`${ids.length} deleted`);
+  }, [selectedIds, selectedEmailId, emails]);
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
