@@ -206,13 +206,22 @@ const Index = () => {
       <div className={`flex flex-col w-full md:w-80 lg:w-96 border-r border-border bg-card flex-shrink-0 ${
         selectedEmail ? 'hidden md:flex' : 'flex'
       }`}>
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-border md:hidden">
-          <button onClick={() => setSidebarOpen(true)} className="p-1.5 rounded-md hover:bg-muted">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+          <button onClick={() => setSidebarOpen(true)} className="p-1.5 rounded-md hover:bg-muted md:hidden">
             <Menu size={20} />
           </button>
-          <span className="font-semibold text-sm">
+          <span className="font-semibold text-sm flex-1 truncate">
             {activeProvider === 'all' ? 'All Inboxes' : activeProvider.charAt(0).toUpperCase() + activeProvider.slice(1)}
+            {loading && <span className="ml-2 text-xs text-muted-foreground font-normal">loading…</span>}
           </span>
+          <button
+            onClick={syncAll}
+            disabled={syncing}
+            title="Sync all accounts now"
+            className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+          >
+            <RotateCw size={16} className={syncing ? "animate-spin" : ""} />
+          </button>
         </div>
         <EmailSearch
           value={searchQuery}
