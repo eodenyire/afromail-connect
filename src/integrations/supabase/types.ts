@@ -146,6 +146,86 @@ export type Database = {
         }
         Relationships: []
       }
+      messages: {
+        Row: {
+          account_id: string
+          body_html: string | null
+          body_text: string | null
+          cc_emails: string[]
+          created_at: string
+          folder: string
+          from_email: string
+          from_name: string | null
+          has_attachment: boolean
+          id: string
+          preview: string | null
+          provider: string
+          provider_message_id: string
+          read: boolean
+          received_at: string
+          starred: boolean
+          subject: string | null
+          thread_id: string | null
+          to_emails: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_id: string
+          body_html?: string | null
+          body_text?: string | null
+          cc_emails?: string[]
+          created_at?: string
+          folder?: string
+          from_email: string
+          from_name?: string | null
+          has_attachment?: boolean
+          id?: string
+          preview?: string | null
+          provider: string
+          provider_message_id: string
+          read?: boolean
+          received_at?: string
+          starred?: boolean
+          subject?: string | null
+          thread_id?: string | null
+          to_emails?: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string
+          body_html?: string | null
+          body_text?: string | null
+          cc_emails?: string[]
+          created_at?: string
+          folder?: string
+          from_email?: string
+          from_name?: string | null
+          has_attachment?: boolean
+          id?: string
+          preview?: string | null
+          provider?: string
+          provider_message_id?: string
+          read?: boolean
+          received_at?: string
+          starred?: boolean
+          subject?: string | null
+          thread_id?: string | null
+          to_emails?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "email_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
