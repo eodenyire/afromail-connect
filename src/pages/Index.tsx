@@ -1,15 +1,60 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import EmailSidebar from "@/components/EmailSidebar";
 import EmailList from "@/components/EmailList";
 import EmailDetail from "@/components/EmailDetail";
 import EmailSearch, { defaultFilters, type SearchFilters } from "@/components/EmailSearch";
 import ComposeEmail from "@/components/ComposeEmail";
-import { mockEmails as initialEmails, type Email, type EmailProvider } from "@/data/mockEmails";
-import { Menu } from "lucide-react";
+import { type Email, type EmailProvider } from "@/data/mockEmails";
+import { Menu, RotateCw } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+
+interface MessageRow {
+  id: string;
+  account_id: string;
+  provider: string;
+  from_name: string | null;
+  from_email: string;
+  to_emails: string[];
+  subject: string | null;
+  preview: string | null;
+  body_text: string | null;
+  body_html: string | null;
+  received_at: string;
+  read: boolean;
+  starred: boolean;
+  has_attachment: boolean;
+  folder: string;
+}
+
+const KNOWN_PROVIDERS: EmailProvider[] = [
+  "gmail","outlook","yahoo","icloud","protonmail","zoho","aol","yandex","fastmail","tutanota","afromail",
+];
+
+function toEmail(m: MessageRow): Email {
+  const provider = (KNOWN_PROVIDERS.includes(m.provider as EmailProvider) ? m.provider : "afromail") as EmailProvider;
+  return {
+    id: m.id,
+    from: m.from_name || m.from_email,
+    fromEmail: m.from_email,
+    to: m.to_emails?.[0] ?? "",
+    subject: m.subject ?? "(no subject)",
+    preview: m.preview ?? "",
+    body: m.body_text ?? m.body_html ?? "",
+    date: m.received_at,
+    read: m.read,
+    starred: m.starred,
+    provider,
+    hasAttachment: m.has_attachment,
+  };
+}
 
 const Index = () => {
-  const [emails, setEmails] = useState<Email[]>(initialEmails);
+  const { user } = useAuth();
+  const [emails, setEmails] = useState<Email[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [activeProvider, setActiveProvider] = useState<EmailProvider | 'all'>('all');
   const [activeFolder, setActiveFolder] = useState('inbox');
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
