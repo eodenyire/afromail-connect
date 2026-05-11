@@ -1,15 +1,60 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import EmailSidebar from "@/components/EmailSidebar";
 import EmailList from "@/components/EmailList";
 import EmailDetail from "@/components/EmailDetail";
 import EmailSearch, { defaultFilters, type SearchFilters } from "@/components/EmailSearch";
 import ComposeEmail from "@/components/ComposeEmail";
-import { mockEmails as initialEmails, type Email, type EmailProvider } from "@/data/mockEmails";
-import { Menu } from "lucide-react";
+import { type Email, type EmailProvider } from "@/data/mockEmails";
+import { Menu, RotateCw } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+
+interface MessageRow {
+  id: string;
+  account_id: string;
+  provider: string;
+  from_name: string | null;
+  from_email: string;
+  to_emails: string[];
+  subject: string | null;
+  preview: string | null;
+  body_text: string | null;
+  body_html: string | null;
+  received_at: string;
+  read: boolean;
+  starred: boolean;
+  has_attachment: boolean;
+  folder: string;
+}
+
+const KNOWN_PROVIDERS: EmailProvider[] = [
+  "gmail","outlook","yahoo","icloud","protonmail","zoho","aol","yandex","fastmail","tutanota","afromail",
+];
+
+function toEmail(m: MessageRow): Email {
+  const provider = (KNOWN_PROVIDERS.includes(m.provider as EmailProvider) ? m.provider : "afromail") as EmailProvider;
+  return {
+    id: m.id,
+    from: m.from_name || m.from_email,
+    fromEmail: m.from_email,
+    to: m.to_emails?.[0] ?? "",
+    subject: m.subject ?? "(no subject)",
+    preview: m.preview ?? "",
+    body: m.body_text ?? m.body_html ?? "",
+    date: m.received_at,
+    read: m.read,
+    starred: m.starred,
+    provider,
+    hasAttachment: m.has_attachment,
+  };
+}
 
 const Index = () => {
-  const [emails, setEmails] = useState<Email[]>(initialEmails);
+  const { user } = useAuth();
+  const [emails, setEmails] = useState<Email[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [activeProvider, setActiveProvider] = useState<EmailProvider | 'all'>('all');
   const [activeFolder, setActiveFolder] = useState('inbox');
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
@@ -18,6 +63,48 @@ const Index = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const loadMessages = useCallback(async () => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from("messages")
+      .select("*")
+      .order("received_at", { ascending: false })
+      .limit(500);
+    if (error) {
+      toast.error(`Failed to load inbox: ${error.message}`);
+      return;
+    }
+    setEmails((data as MessageRow[]).map(toEmail));
+  }, [user]);
+
+  const syncAll = useCallback(async () => {
+    if (!user) return;
+    setSyncing(true);
+    const { error } = await supabase.functions.invoke("email-sync-all");
+    setSyncing(false);
+    if (error) toast.error(`Sync failed: ${error.message}`);
+    else toast.success("Inbox synced");
+    await loadMessages();
+  }, [user, loadMessages]);
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      setLoading(true);
+      await loadMessages();
+      setLoading(false);
+      syncAll();
+    })();
+    const channel = supabase
+      .channel("messages-realtime")
+      .on("postgres_changes",
+        { event: "*", schema: "public", table: "messages", filter: `user_id=eq.${user.id}` },
+        () => loadMessages())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   const filteredEmails = useMemo(() => {
     let result = emails;
@@ -63,30 +150,40 @@ const Index = () => {
 
   const handleDeselectAll = useCallback(() => setSelectedIds(new Set()), []);
 
-  const handleBulkMarkRead = useCallback(() => {
+  const handleBulkMarkRead = useCallback(async () => {
+    const ids = Array.from(selectedIds);
     setEmails(prev => prev.map(e => selectedIds.has(e.id) ? { ...e, read: true } : e));
-    toast.success(`${selectedIds.size} email(s) marked as read`);
     setSelectedIds(new Set());
+    await supabase.from("messages").update({ read: true }).in("id", ids);
+    toast.success(`${ids.length} marked as read`);
   }, [selectedIds]);
 
-  const handleBulkMarkUnread = useCallback(() => {
+  const handleBulkMarkUnread = useCallback(async () => {
+    const ids = Array.from(selectedIds);
     setEmails(prev => prev.map(e => selectedIds.has(e.id) ? { ...e, read: false } : e));
-    toast.success(`${selectedIds.size} email(s) marked as unread`);
     setSelectedIds(new Set());
+    await supabase.from("messages").update({ read: false }).in("id", ids);
+    toast.success(`${ids.length} marked as unread`);
   }, [selectedIds]);
 
-  const handleBulkStar = useCallback(() => {
+  const handleBulkStar = useCallback(async () => {
+    const targets = emails.filter(e => selectedIds.has(e.id));
     setEmails(prev => prev.map(e => selectedIds.has(e.id) ? { ...e, starred: !e.starred } : e));
-    toast.success(`${selectedIds.size} email(s) star toggled`);
     setSelectedIds(new Set());
-  }, [selectedIds]);
+    await Promise.all(targets.map(e =>
+      supabase.from("messages").update({ starred: !e.starred }).eq("id", e.id),
+    ));
+    toast.success(`${targets.length} star toggled`);
+  }, [selectedIds, emails]);
 
-  const handleBulkDelete = useCallback(() => {
+  const handleBulkDelete = useCallback(async () => {
+    const ids = Array.from(selectedIds);
     setEmails(prev => prev.filter(e => !selectedIds.has(e.id)));
-    toast.success(`${selectedIds.size} email(s) deleted`);
     if (selectedEmailId && selectedIds.has(selectedEmailId)) setSelectedEmailId(null);
     setSelectedIds(new Set());
-  }, [selectedIds, selectedEmailId]);
+    await supabase.from("messages").delete().in("id", ids);
+    toast.success(`${ids.length} deleted`);
+  }, [selectedIds, selectedEmailId, emails]);
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
@@ -109,13 +206,22 @@ const Index = () => {
       <div className={`flex flex-col w-full md:w-80 lg:w-96 border-r border-border bg-card flex-shrink-0 ${
         selectedEmail ? 'hidden md:flex' : 'flex'
       }`}>
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-border md:hidden">
-          <button onClick={() => setSidebarOpen(true)} className="p-1.5 rounded-md hover:bg-muted">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+          <button onClick={() => setSidebarOpen(true)} className="p-1.5 rounded-md hover:bg-muted md:hidden">
             <Menu size={20} />
           </button>
-          <span className="font-semibold text-sm">
+          <span className="font-semibold text-sm flex-1 truncate">
             {activeProvider === 'all' ? 'All Inboxes' : activeProvider.charAt(0).toUpperCase() + activeProvider.slice(1)}
+            {loading && <span className="ml-2 text-xs text-muted-foreground font-normal">loading…</span>}
           </span>
+          <button
+            onClick={syncAll}
+            disabled={syncing}
+            title="Sync all accounts now"
+            className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+          >
+            <RotateCw size={16} className={syncing ? "animate-spin" : ""} />
+          </button>
         </div>
         <EmailSearch
           value={searchQuery}
