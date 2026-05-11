@@ -64,6 +64,48 @@ const Index = () => {
   const [composeOpen, setComposeOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
+  const loadMessages = useCallback(async () => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from("messages")
+      .select("*")
+      .order("received_at", { ascending: false })
+      .limit(500);
+    if (error) {
+      toast.error(`Failed to load inbox: ${error.message}`);
+      return;
+    }
+    setEmails((data as MessageRow[]).map(toEmail));
+  }, [user]);
+
+  const syncAll = useCallback(async () => {
+    if (!user) return;
+    setSyncing(true);
+    const { error } = await supabase.functions.invoke("email-sync-all");
+    setSyncing(false);
+    if (error) toast.error(`Sync failed: ${error.message}`);
+    else toast.success("Inbox synced");
+    await loadMessages();
+  }, [user, loadMessages]);
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      setLoading(true);
+      await loadMessages();
+      setLoading(false);
+      syncAll();
+    })();
+    const channel = supabase
+      .channel("messages-realtime")
+      .on("postgres_changes",
+        { event: "*", schema: "public", table: "messages", filter: `user_id=eq.${user.id}` },
+        () => loadMessages())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
   const filteredEmails = useMemo(() => {
     let result = emails;
     if (activeProvider !== 'all') result = result.filter(e => e.provider === activeProvider);
