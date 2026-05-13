@@ -1,14 +1,21 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { X, ChevronDown, Bold, Italic, Underline, List, ListOrdered, Link2, Paperclip, Trash2, Send, Minus } from "lucide-react";
-import { providers, type EmailProvider } from "@/data/mockEmails";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface ComposeEmailProps {
   open: boolean;
   onClose: () => void;
 }
 
-const connectedProviders = providers.filter(p => p.connected);
+interface AccountRow {
+  id: string;
+  provider: string;
+  email_address: string;
+  display_name: string | null;
+  status: string;
+}
 
 const providerColorMap: Record<string, string> = {
   afromail: 'bg-provider-afromail',
@@ -112,16 +119,37 @@ const ToolbarButton = ({
 );
 
 const ComposeEmail = ({ open, onClose }: ComposeEmailProps) => {
+  const { user } = useAuth();
+  const [accounts, setAccounts] = useState<AccountRow[]>([]);
+  const [selectedAccountId, setSelectedAccountId] = useState<string>("");
   const [to, setTo] = useState<string[]>([]);
   const [cc, setCc] = useState<string[]>([]);
   const [bcc, setBcc] = useState<string[]>([]);
   const [showCcBcc, setShowCcBcc] = useState(false);
   const [subject, setSubject] = useState("");
-  const [selectedProvider, setSelectedProvider] = useState<EmailProvider>(connectedProviders[0]?.id || "afromail");
   const [providerDropdownOpen, setProviderDropdownOpen] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const [sending, setSending] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!user || !open) return;
+    (async () => {
+      const { data, error } = await supabase
+        .from("email_accounts")
+        .select("id, provider, email_address, display_name, status")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: true });
+      if (error) {
+        toast.error(`Failed to load accounts: ${error.message}`);
+        return;
+      }
+      const list = (data ?? []) as AccountRow[];
+      setAccounts(list);
+      if (list.length && !selectedAccountId) setSelectedAccountId(list[0].id);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, open]);
 
   const execCommand = useCallback((command: string, value?: string) => {
     document.execCommand(command, false, value);
@@ -129,6 +157,10 @@ const ComposeEmail = ({ open, onClose }: ComposeEmailProps) => {
   }, []);
 
   const handleSend = async () => {
+    if (!selectedAccountId) {
+      toast.error("Connect an email account first");
+      return;
+    }
     if (to.length === 0) {
       toast.error("Please add at least one recipient");
       return;
@@ -138,11 +170,29 @@ const ComposeEmail = ({ open, onClose }: ComposeEmailProps) => {
       return;
     }
 
+    const html = editorRef.current?.innerHTML ?? "";
+    const text = editorRef.current?.innerText ?? "";
+
     setSending(true);
-    // Simulate send
-    await new Promise((r) => setTimeout(r, 1200));
+    const { error } = await supabase.functions.invoke("email-send", {
+      body: {
+        account_id: selectedAccountId,
+        to,
+        cc: cc.length ? cc : undefined,
+        bcc: bcc.length ? bcc : undefined,
+        subject,
+        body_html: html,
+        body_text: text,
+      },
+    });
     setSending(false);
-    toast.success(`Email sent via ${providers.find(p => p.id === selectedProvider)?.name || selectedProvider}`);
+
+    if (error) {
+      toast.error(`Send failed: ${error.message}`);
+      return;
+    }
+    const acct = accounts.find(a => a.id === selectedAccountId);
+    toast.success(`Email sent via ${acct?.email_address ?? "account"}`);
     resetForm();
     onClose();
   };
@@ -164,7 +214,7 @@ const ComposeEmail = ({ open, onClose }: ComposeEmailProps) => {
 
   if (!open) return null;
 
-  const currentProvider = providers.find(p => p.id === selectedProvider);
+  const currentAccount = accounts.find(a => a.id === selectedAccountId);
 
   return (
     <div
@@ -174,7 +224,6 @@ const ComposeEmail = ({ open, onClose }: ComposeEmailProps) => {
           : "bottom-0 right-4 w-full max-w-[560px] h-[520px] sm:h-[540px]"
       }`}
     >
-      {/* Title bar */}
       <div
         className="flex items-center justify-between px-4 py-2.5 bg-foreground/[0.03] border-b border-border rounded-t-xl cursor-pointer select-none"
         onClick={() => setMinimized(!minimized)}
@@ -194,45 +243,42 @@ const ComposeEmail = ({ open, onClose }: ComposeEmailProps) => {
 
       {!minimized && (
         <>
-          {/* Provider selector */}
           <div className="relative px-4 py-2 border-b border-border">
-            <button
-              onClick={() => setProviderDropdownOpen(!providerDropdownOpen)}
-              className="flex items-center gap-2 text-sm text-foreground hover:bg-muted px-2 py-1 rounded transition-colors"
-            >
-              <span className={`w-4 h-4 rounded-full ${providerColorMap[selectedProvider]} flex items-center justify-center text-[9px]`}>
-                {currentProvider?.icon}
-              </span>
-              <span className="font-medium">{currentProvider?.name}</span>
-              <ChevronDown size={13} className="text-muted-foreground" />
-            </button>
+            {accounts.length === 0 ? (
+              <span className="text-xs text-muted-foreground">No connected accounts. Add one in Settings.</span>
+            ) : (
+              <button
+                onClick={() => setProviderDropdownOpen(!providerDropdownOpen)}
+                className="flex items-center gap-2 text-sm text-foreground hover:bg-muted px-2 py-1 rounded transition-colors"
+              >
+                <span className={`w-4 h-4 rounded-full ${providerColorMap[currentAccount?.provider ?? ''] ?? 'bg-muted'}`} />
+                <span className="font-medium">{currentAccount?.email_address}</span>
+                <ChevronDown size={13} className="text-muted-foreground" />
+              </button>
+            )}
             {providerDropdownOpen && (
-              <div className="absolute top-full left-4 mt-1 bg-popover border border-border rounded-lg shadow-lg z-10 py-1 min-w-[180px]">
-                {connectedProviders.map((p) => (
+              <div className="absolute top-full left-4 mt-1 bg-popover border border-border rounded-lg shadow-lg z-10 py-1 min-w-[220px]">
+                {accounts.map((a) => (
                   <button
-                    key={p.id}
+                    key={a.id}
                     onClick={() => {
-                      setSelectedProvider(p.id);
+                      setSelectedAccountId(a.id);
                       setProviderDropdownOpen(false);
                     }}
                     className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-muted transition-colors ${
-                      selectedProvider === p.id ? "bg-muted/50 font-medium" : ""
+                      selectedAccountId === a.id ? "bg-muted/50 font-medium" : ""
                     }`}
                   >
-                    <span className={`w-4 h-4 rounded-full ${providerColorMap[p.id]} flex items-center justify-center text-[9px]`}>
-                      {p.icon}
-                    </span>
-                    {p.name}
+                    <span className={`w-4 h-4 rounded-full ${providerColorMap[a.provider] ?? 'bg-muted'}`} />
+                    <span className="truncate">{a.email_address}</span>
                   </button>
                 ))}
               </div>
             )}
           </div>
 
-          {/* To */}
           <EmailChipInput label="To" value={to} onChange={setTo} />
 
-          {/* Cc/Bcc toggle */}
           {!showCcBcc && (
             <div className="px-4 py-1 border-b border-border">
               <button
@@ -251,7 +297,6 @@ const ComposeEmail = ({ open, onClose }: ComposeEmailProps) => {
             </>
           )}
 
-          {/* Subject */}
           <div className="px-4 py-2 border-b border-border">
             <input
               type="text"
@@ -263,7 +308,6 @@ const ComposeEmail = ({ open, onClose }: ComposeEmailProps) => {
             />
           </div>
 
-          {/* Rich text editor */}
           <div className="flex-1 flex flex-col overflow-hidden">
             <div
               ref={editorRef}
@@ -271,15 +315,9 @@ const ComposeEmail = ({ open, onClose }: ComposeEmailProps) => {
               className="flex-1 px-4 py-3 text-sm text-foreground outline-none overflow-y-auto"
               style={{ minHeight: 80 }}
               data-placeholder="Write your message..."
-              onFocus={(e) => {
-                if (e.currentTarget.textContent === "") {
-                  e.currentTarget.classList.add("empty");
-                }
-              }}
             />
           </div>
 
-          {/* Toolbar & Send */}
           <div className="flex items-center justify-between px-3 py-2 border-t border-border">
             <div className="flex items-center gap-0.5">
               <ToolbarButton icon={Bold} label="Bold" onClick={() => execCommand("bold")} />
@@ -310,7 +348,7 @@ const ComposeEmail = ({ open, onClose }: ComposeEmailProps) => {
               </button>
               <button
                 onClick={handleSend}
-                disabled={sending}
+                disabled={sending || accounts.length === 0}
                 className="flex items-center gap-1.5 bg-primary text-primary-foreground rounded-lg px-4 py-1.5 text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
               >
                 <Send size={14} />
