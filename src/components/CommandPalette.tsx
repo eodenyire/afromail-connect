@@ -5,7 +5,7 @@ import {
   CommandItem, CommandList, CommandSeparator,
 } from "@/components/ui/command";
 import { useNavigate } from "react-router-dom";
-import { actions, useMail } from "@/lib/mailStore";
+import { resetSeed, useMail } from "@/lib/mailStore";
 
 interface Props {
   onCompose: () => void;
@@ -38,7 +38,7 @@ export const CommandPalette = ({ onCompose, onFolderChange }: Props) => {
         <CommandEmpty>No results.</CommandEmpty>
         <CommandGroup heading="Actions">
           <CommandItem onSelect={() => run(onCompose)}>✏️ Compose new email</CommandItem>
-          <CommandItem onSelect={() => run(() => actions.resetAll?.())}>♻️ (no-op) Refresh</CommandItem>
+          <CommandItem onSelect={() => run(() => { resetSeed(); })}>♻️ Reset mock data to seed</CommandItem>
         </CommandGroup>
         <CommandSeparator />
         <CommandGroup heading="Go to">
