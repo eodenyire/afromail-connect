@@ -1,242 +1,175 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import EmailSidebar from "@/components/EmailSidebar";
-import EmailList from "@/components/EmailList";
+import EmailList, { type ThreadRow } from "@/components/EmailList";
 import EmailDetail from "@/components/EmailDetail";
-import EmailSearch, { defaultFilters, type SearchFilters } from "@/components/EmailSearch";
-import ComposeEmail from "@/components/ComposeEmail";
-import { type Email, type EmailProvider } from "@/data/mockEmails";
-import { Menu, RotateCw } from "lucide-react";
-import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import ComposeEmail, { type ComposeState } from "@/components/ComposeEmail";
+import { CommandPalette } from "@/components/CommandPalette";
+import { Menu, Search, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-
-interface MessageRow {
-  id: string;
-  account_id: string;
-  provider: string;
-  from_name: string | null;
-  from_email: string;
-  to_emails: string[];
-  subject: string | null;
-  preview: string | null;
-  body_text: string | null;
-  body_html: string | null;
-  received_at: string;
-  read: boolean;
-  starred: boolean;
-  has_attachment: boolean;
-  folder: string;
-}
-
-const KNOWN_PROVIDERS: EmailProvider[] = [
-  "gmail","outlook","yahoo","icloud","protonmail","zoho","aol","yandex","fastmail","tutanota","afromail",
-];
-
-function toEmail(m: MessageRow): Email {
-  const provider = (KNOWN_PROVIDERS.includes(m.provider as EmailProvider) ? m.provider : "afromail") as EmailProvider;
-  return {
-    id: m.id,
-    from: m.from_name || m.from_email,
-    fromEmail: m.from_email,
-    to: m.to_emails?.[0] ?? "",
-    subject: m.subject ?? "(no subject)",
-    preview: m.preview ?? "",
-    body: m.body_text ?? m.body_html ?? "",
-    date: m.received_at,
-    read: m.read,
-    starred: m.starred,
-    provider,
-    hasAttachment: m.has_attachment,
-  };
-}
+import {
+  actions, belongsToFolder, folderLabel, searchMessages, setActiveUser, useMail,
+  type Message,
+} from "@/lib/mailStore";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 
 const Index = () => {
   const { user } = useAuth();
-  const [emails, setEmails] = useState<Email[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
-  const [activeProvider, setActiveProvider] = useState<EmailProvider | 'all'>('all');
-  const [activeFolder, setActiveFolder] = useState('inbox');
-  const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchFilters, setSearchFilters] = useState<SearchFilters>(defaultFilters);
+  const [activeView, setActiveView] = useState("inbox");
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [composeInitial, setComposeInitial] = useState<ComposeState | undefined>();
 
-  const loadMessages = useCallback(async () => {
-    if (!user) return;
-    const { data, error } = await supabase
-      .from("messages")
-      .select("*")
-      .order("received_at", { ascending: false })
-      .limit(500);
-    if (error) {
-      toast.error(`Failed to load inbox: ${error.message}`);
-      return;
+  useEffect(() => { setActiveUser(user?.id); }, [user?.id]);
+
+  const state = useMail(s => s);
+
+  const threads: ThreadRow[] = useMemo(() => {
+    // 1. start from search results if any, else all messages
+    const base = searchQuery.trim() ? searchMessages(state, searchQuery) : state.messages;
+    // 2. filter by view
+    let filtered: Message[] = base;
+    if (activeView.startsWith("label:")) {
+      const labelId = activeView.slice(6);
+      filtered = base.filter(m => m.labelIds.includes(labelId) && m.folderId !== "trash");
+    } else if (activeView.startsWith("acct:")) {
+      const acctId = activeView.slice(5);
+      filtered = base.filter(m => m.accountId === acctId && m.folderId !== "trash");
+    } else {
+      filtered = base.filter(m => belongsToFolder(m, activeView));
     }
-    setEmails((data as MessageRow[]).map(toEmail));
-  }, [user]);
-
-  const syncAll = useCallback(async () => {
-    if (!user) return;
-    setSyncing(true);
-    const { error } = await supabase.functions.invoke("email-sync-all");
-    setSyncing(false);
-    if (error) toast.error(`Sync failed: ${error.message}`);
-    else toast.success("Inbox synced");
-    await loadMessages();
-  }, [user, loadMessages]);
-
-  useEffect(() => {
-    if (!user) return;
-    (async () => {
-      setLoading(true);
-      await loadMessages();
-      setLoading(false);
-      syncAll();
-    })();
-    const channel = supabase
-      .channel("messages-realtime")
-      .on("postgres_changes",
-        { event: "*", schema: "public", table: "messages", filter: `user_id=eq.${user.id}` },
-        () => loadMessages())
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
-
-  const filteredEmails = useMemo(() => {
-    let result = emails;
-    if (activeProvider !== 'all') result = result.filter(e => e.provider === activeProvider);
-    if (activeProvider === 'all' && searchFilters.provider !== 'all') result = result.filter(e => e.provider === searchFilters.provider);
-    if (activeFolder === 'starred') result = result.filter(e => e.starred);
-    if (searchFilters.hasAttachment === true) result = result.filter(e => e.hasAttachment);
-    if (searchFilters.dateFrom) {
-      const from = searchFilters.dateFrom.getTime();
-      result = result.filter(e => new Date(e.date).getTime() >= from);
-    }
-    if (searchFilters.dateTo) {
-      const to = new Date(searchFilters.dateTo);
-      to.setHours(23, 59, 59, 999);
-      result = result.filter(e => new Date(e.date).getTime() <= to.getTime());
-    }
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(e =>
-        e.subject.toLowerCase().includes(q) ||
-        e.from.toLowerCase().includes(q) ||
-        e.preview.toLowerCase().includes(q)
-      );
-    }
-    return result;
-  }, [emails, activeProvider, activeFolder, searchQuery, searchFilters]);
-
-  const selectedEmail = selectedEmailId
-    ? emails.find(e => e.id === selectedEmailId) ?? null
-    : null;
-
-  const handleToggleSelect = useCallback((id: string) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
+    // 3. group
+    const map = new Map<string, Message[]>();
+    filtered.forEach(m => {
+      const arr = map.get(m.threadId) ?? [];
+      arr.push(m);
+      map.set(m.threadId, arr);
     });
-  }, []);
+    const out: ThreadRow[] = [];
+    map.forEach((msgs, threadId) => {
+      msgs.sort((a, b) => +new Date(b.date) - +new Date(a.date));
+      const latest = msgs[0];
+      out.push({
+        threadId,
+        latest,
+        count: msgs.length,
+        hasUnread: msgs.some(m => !m.read),
+        hasStar: msgs.some(m => m.starred),
+        hasAttachment: msgs.some(m => m.attachments.length > 0),
+        pinned: msgs.some(m => m.pinned ?? false),
+      });
+    });
+    return out.sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return +new Date(b.latest.date) - +new Date(a.latest.date);
+    });
+  }, [state, activeView, searchQuery]);
 
-  const handleSelectAll = useCallback(() => {
-    setSelectedIds(new Set(filteredEmails.map(e => e.id)));
-  }, [filteredEmails]);
+  // Clear selection & selected thread when view changes
+  useEffect(() => { setSelectedThreadId(null); setSelectedIds(new Set()); }, [activeView]);
 
-  const handleDeselectAll = useCallback(() => setSelectedIds(new Set()), []);
+  // Mark thread messages read on open
+  useEffect(() => {
+    if (!selectedThreadId) return;
+    const ids = state.messages.filter(m => m.threadId === selectedThreadId && !m.read).map(m => m.id);
+    if (ids.length) actions.toggleRead(ids, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedThreadId]);
 
-  const handleBulkMarkRead = useCallback(async () => {
-    const ids = Array.from(selectedIds);
-    setEmails(prev => prev.map(e => selectedIds.has(e.id) ? { ...e, read: true } : e));
-    setSelectedIds(new Set());
-    await supabase.from("messages").update({ read: true }).in("id", ids);
-    toast.success(`${ids.length} marked as read`);
-  }, [selectedIds]);
+  const collectMessageIds = useCallback((threadIds: Set<string>) =>
+    state.messages.filter(m => threadIds.has(m.threadId)).map(m => m.id),
+    [state.messages],
+  );
 
-  const handleBulkMarkUnread = useCallback(async () => {
-    const ids = Array.from(selectedIds);
-    setEmails(prev => prev.map(e => selectedIds.has(e.id) ? { ...e, read: false } : e));
-    setSelectedIds(new Set());
-    await supabase.from("messages").update({ read: false }).in("id", ids);
-    toast.success(`${ids.length} marked as unread`);
-  }, [selectedIds]);
+  const openCompose = (initial?: ComposeState) => { setComposeInitial(initial); setComposeOpen(true); };
+  const handleReply = (msg: Message, mode: "reply" | "replyAll" | "forward") => {
+    const acct = state.accounts.find(a => a.email.toLowerCase() === msg.to[0]?.toLowerCase()) ?? state.accounts.find(a => a.isDefault) ?? state.accounts[0];
+    const quoted = `<br/><br/><blockquote style="border-left:2px solid #ccc;padding-left:8px;color:#666">On ${new Date(msg.date).toLocaleString()}, ${msg.fromName} wrote:<br/>${msg.bodyHtml}</blockquote>`;
+    if (mode === "forward") {
+      openCompose({
+        accountId: acct?.id,
+        subject: `Fwd: ${msg.subject}`,
+        bodyHtml: quoted,
+      });
+    } else {
+      openCompose({
+        accountId: acct?.id,
+        to: [msg.fromEmail],
+        cc: mode === "replyAll" ? msg.cc : [],
+        subject: msg.subject.startsWith("Re:") ? msg.subject : `Re: ${msg.subject}`,
+        bodyHtml: quoted,
+        inReplyTo: msg.id,
+        threadId: msg.threadId,
+      });
+    }
+  };
 
-  const handleBulkStar = useCallback(async () => {
-    const targets = emails.filter(e => selectedIds.has(e.id));
-    setEmails(prev => prev.map(e => selectedIds.has(e.id) ? { ...e, starred: !e.starred } : e));
-    setSelectedIds(new Set());
-    await Promise.all(targets.map(e =>
-      supabase.from("messages").update({ starred: !e.starred }).eq("id", e.id),
-    ));
-    toast.success(`${targets.length} star toggled`);
-  }, [selectedIds, emails]);
+  const bulkIds = () => collectMessageIds(selectedIds);
+  const handleBulkMarkRead = () => { actions.toggleRead(bulkIds(), true); setSelectedIds(new Set()); };
+  const handleBulkMarkUnread = () => { actions.toggleRead(bulkIds(), false); setSelectedIds(new Set()); };
+  const handleBulkStar = () => { actions.toggleStar(bulkIds()); setSelectedIds(new Set()); };
+  const handleBulkDelete = () => { actions.trash(bulkIds()); setSelectedIds(new Set()); if (selectedThreadId && selectedIds.has(selectedThreadId)) setSelectedThreadId(null); };
 
-  const handleBulkDelete = useCallback(async () => {
-    const ids = Array.from(selectedIds);
-    setEmails(prev => prev.filter(e => !selectedIds.has(e.id)));
-    if (selectedEmailId && selectedIds.has(selectedEmailId)) setSelectedEmailId(null);
-    setSelectedIds(new Set());
-    await supabase.from("messages").delete().in("id", ids);
-    toast.success(`${ids.length} deleted`);
-  }, [selectedIds, selectedEmailId, emails]);
+  useKeyboardShortcuts({
+    "c": () => openCompose(),
+    "/": () => (document.getElementById("mail-search") as HTMLInputElement | null)?.focus(),
+    "gi": () => setActiveView("inbox"),
+    "gs": () => setActiveView("starred"),
+    "gd": () => setActiveView("drafts"),
+    "gt": () => setActiveView("sent"),
+    "ga": () => setActiveView("all"),
+    "Escape": () => { setSelectedThreadId(null); setSelectedIds(new Set()); },
+  }, state.settings.shortcutsEnabled);
+
+  const viewTitle = useMemo(() => {
+    if (activeView.startsWith("label:")) return state.labels.find(l => l.id === activeView.slice(6))?.name ?? "Label";
+    if (activeView.startsWith("acct:")) return state.accounts.find(a => a.id === activeView.slice(5))?.email ?? "Account";
+    return folderLabel(activeView, state.customFolders);
+  }, [activeView, state]);
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
-      {sidebarOpen && (
-        <div className="fixed inset-0 bg-foreground/30 z-40 md:hidden" onClick={() => setSidebarOpen(false)} />
-      )}
-
-      <div className={`fixed inset-y-0 left-0 z-50 md:relative md:z-auto transition-transform duration-200 ${
-        sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
-      }`}>
+      {sidebarOpen && <div className="fixed inset-0 bg-foreground/30 z-40 md:hidden" onClick={() => setSidebarOpen(false)} />}
+      <div className={`fixed inset-y-0 left-0 z-50 md:relative md:z-auto transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}>
         <EmailSidebar
-          activeProvider={activeProvider}
-          onProviderChange={(p) => { setActiveProvider(p); setSidebarOpen(false); }}
-          activeFolder={activeFolder}
-          onFolderChange={(f) => { setActiveFolder(f); setSidebarOpen(false); }}
-          onCompose={() => { setComposeOpen(true); setSidebarOpen(false); }}
+          activeView={activeView}
+          onViewChange={(v) => { setActiveView(v); setSidebarOpen(false); }}
+          onCompose={() => { openCompose(); setSidebarOpen(false); }}
         />
       </div>
 
-      <div className={`flex flex-col w-full md:w-80 lg:w-96 border-r border-border bg-card flex-shrink-0 ${
-        selectedEmail ? 'hidden md:flex' : 'flex'
-      }`}>
+      <div className={`flex flex-col w-full md:w-96 border-r border-border bg-card flex-shrink-0 ${selectedThreadId ? "hidden md:flex" : "flex"}`}>
         <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
-          <button onClick={() => setSidebarOpen(true)} className="p-1.5 rounded-md hover:bg-muted md:hidden">
-            <Menu size={20} />
-          </button>
-          <span className="font-semibold text-sm flex-1 truncate">
-            {activeProvider === 'all' ? 'All Inboxes' : activeProvider.charAt(0).toUpperCase() + activeProvider.slice(1)}
-            {loading && <span className="ml-2 text-xs text-muted-foreground font-normal">loading…</span>}
-          </span>
-          <button
-            onClick={syncAll}
-            disabled={syncing}
-            title="Sync all accounts now"
-            className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-          >
-            <RotateCw size={16} className={syncing ? "animate-spin" : ""} />
-          </button>
+          <button onClick={() => setSidebarOpen(true)} className="p-1.5 rounded-md hover:bg-muted md:hidden"><Menu size={20} /></button>
+          <span className="font-semibold text-sm flex-1 truncate">{viewTitle}</span>
         </div>
-        <EmailSearch
-          value={searchQuery}
-          onChange={setSearchQuery}
-          filters={searchFilters}
-          onFiltersChange={setSearchFilters}
-        />
+        <div className="border-b border-border px-4 py-2">
+          <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2">
+            <Search size={14} className="text-muted-foreground" />
+            <input
+              id="mail-search"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search — try is:unread, has:attachment, label:work"
+              className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery("")} className="text-muted-foreground hover:text-foreground"><X size={14} /></button>
+            )}
+          </div>
+        </div>
         <EmailList
-          emails={filteredEmails}
-          selectedId={selectedEmailId}
-          onSelect={setSelectedEmailId}
+          threads={threads}
+          selectedThreadId={selectedThreadId}
+          onSelect={setSelectedThreadId}
           selectedIds={selectedIds}
-          onToggleSelect={handleToggleSelect}
-          onSelectAll={handleSelectAll}
-          onDeselectAll={handleDeselectAll}
+          onToggleSelect={id => {
+            setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+          }}
+          onSelectAll={() => setSelectedIds(new Set(threads.map(t => t.threadId)))}
+          onDeselectAll={() => setSelectedIds(new Set())}
           onBulkMarkRead={handleBulkMarkRead}
           onBulkMarkUnread={handleBulkMarkUnread}
           onBulkStar={handleBulkStar}
@@ -244,11 +177,12 @@ const Index = () => {
         />
       </div>
 
-      <div className={`flex-1 flex flex-col bg-card ${selectedEmail ? 'flex' : 'hidden md:flex'}`}>
-        <EmailDetail email={selectedEmail} onBack={() => setSelectedEmailId(null)} />
+      <div className={`flex-1 flex flex-col bg-card ${selectedThreadId ? "flex" : "hidden md:flex"}`}>
+        <EmailDetail threadId={selectedThreadId} onBack={() => setSelectedThreadId(null)} onReply={handleReply} />
       </div>
 
-      <ComposeEmail open={composeOpen} onClose={() => setComposeOpen(false)} />
+      <ComposeEmail open={composeOpen} onClose={() => setComposeOpen(false)} initial={composeInitial} />
+      <CommandPalette onCompose={() => openCompose()} onFolderChange={setActiveView} />
     </div>
   );
 };
