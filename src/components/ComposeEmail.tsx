@@ -1,126 +1,83 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { X, ChevronDown, Bold, Italic, Underline, List, ListOrdered, Link2, Paperclip, Trash2, Send, Minus } from "lucide-react";
+import { X, ChevronDown, Bold, Italic, Underline, List, ListOrdered, Link2, Paperclip, Trash2, Send, Minus, Clock } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
+import { useMail, actions } from "@/lib/mailStore";
+
+export interface ComposeState {
+  to?: string[];
+  cc?: string[];
+  bcc?: string[];
+  subject?: string;
+  bodyHtml?: string;
+  inReplyTo?: string;
+  threadId?: string;
+  accountId?: string;
+}
 
 interface ComposeEmailProps {
   open: boolean;
   onClose: () => void;
+  initial?: ComposeState;
 }
 
-interface AccountRow {
-  id: string;
-  provider: string;
-  email_address: string;
-  display_name: string | null;
-  status: string;
-}
-
-const providerColorMap: Record<string, string> = {
-  afromail: 'bg-provider-afromail',
-  gmail: 'bg-provider-gmail',
-  outlook: 'bg-provider-outlook',
-  yahoo: 'bg-provider-yahoo',
-  protonmail: 'bg-provider-proton',
-  icloud: 'bg-provider-icloud',
-  zoho: 'bg-provider-zoho',
-  aol: 'bg-provider-aol',
-  yandex: 'bg-provider-yandex',
-  fastmail: 'bg-provider-fastmail',
-  tutanota: 'bg-provider-tutanota',
-};
-
-const EmailChipInput = ({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string[];
-  onChange: (val: string[]) => void;
-}) => {
-  const [input, setInput] = useState("");
-
-  const addChip = () => {
-    const trimmed = input.trim();
-    if (trimmed && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed) && !value.includes(trimmed)) {
-      onChange([...value, trimmed]);
-      setInput("");
-    } else if (trimmed) {
-      toast.error("Invalid email address");
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" || e.key === "," || e.key === "Tab") {
-      e.preventDefault();
-      addChip();
-    } else if (e.key === "Backspace" && !input && value.length > 0) {
-      onChange(value.slice(0, -1));
-    }
-  };
-
-  return (
-    <div className="flex items-start gap-2 px-4 py-2 border-b border-border">
-      <span className="text-xs font-medium text-muted-foreground pt-1.5 w-8 shrink-0">{label}</span>
-      <div className="flex-1 flex flex-wrap items-center gap-1.5 min-h-[32px]">
-        {value.map((email, i) => (
-          <span
-            key={i}
-            className="inline-flex items-center gap-1 bg-muted text-foreground text-xs rounded-full px-2.5 py-1"
-          >
-            {email}
-            <button
-              onClick={() => onChange(value.filter((_, idx) => idx !== i))}
-              className="hover:text-destructive"
-            >
-              <X size={12} />
-            </button>
-          </span>
-        ))}
-        <input
-          type="email"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onBlur={addChip}
-          placeholder={value.length === 0 ? "name@example.com" : ""}
-          className="flex-1 min-w-[120px] bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/50"
-        />
-      </div>
-    </div>
-  );
-};
-
-const ToolbarButton = ({
-  icon: Icon,
-  label,
-  active,
-  onClick,
-}: {
-  icon: React.ElementType;
-  label: string;
-  active?: boolean;
-  onClick: () => void;
-}) => (
-  <button
-    type="button"
-    onClick={onClick}
-    title={label}
-    className={`p-1.5 rounded transition-colors ${
-      active
-        ? "bg-primary/10 text-primary"
-        : "text-muted-foreground hover:text-foreground hover:bg-muted"
-    }`}
-  >
+const ToolbarButton = ({ icon: Icon, label, onClick }: { icon: React.ElementType; label: string; onClick: () => void }) => (
+  <button type="button" onClick={onClick} title={label} className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
     <Icon size={15} />
   </button>
 );
 
-const ComposeEmail = ({ open, onClose }: ComposeEmailProps) => {
-  const { user } = useAuth();
-  const [accounts, setAccounts] = useState<AccountRow[]>([]);
+const ChipInput = ({ label, value, onChange }: { label: string; value: string[]; onChange: (v: string[]) => void }) => {
+  const [input, setInput] = useState("");
+  const contacts = useMail(s => s.contacts);
+  const suggestions = input.trim()
+    ? contacts.filter(c => (c.email.toLowerCase().includes(input.toLowerCase()) || c.name.toLowerCase().includes(input.toLowerCase())) && !value.includes(c.email)).slice(0, 5)
+    : [];
+
+  const add = (email: string) => {
+    if (!email) return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast.error("Invalid email"); return; }
+    if (!value.includes(email)) onChange([...value, email]);
+    setInput("");
+  };
+
+  return (
+    <div className="relative flex items-start gap-2 px-4 py-2 border-b border-border">
+      <span className="text-xs font-medium text-muted-foreground pt-1.5 w-8 shrink-0">{label}</span>
+      <div className="flex-1 flex flex-wrap items-center gap-1.5 min-h-[32px]">
+        {value.map((e, i) => (
+          <span key={i} className="inline-flex items-center gap-1 bg-muted text-foreground text-xs rounded-full px-2.5 py-1">
+            {e}
+            <button onClick={() => onChange(value.filter((_, idx) => idx !== i))} className="hover:text-destructive"><X size={12} /></button>
+          </span>
+        ))}
+        <input
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === "Enter" || e.key === "," || e.key === "Tab") { e.preventDefault(); add(input.trim()); }
+            else if (e.key === "Backspace" && !input && value.length > 0) onChange(value.slice(0, -1));
+          }}
+          onBlur={() => input.trim() && add(input.trim())}
+          placeholder={value.length === 0 ? "name@example.com" : ""}
+          className="flex-1 min-w-[120px] bg-transparent text-sm outline-none placeholder:text-muted-foreground/50"
+        />
+      </div>
+      {suggestions.length > 0 && (
+        <div className="absolute left-14 top-full z-10 bg-popover border border-border rounded-lg shadow-lg py-1 min-w-[240px]">
+          {suggestions.map(c => (
+            <button key={c.id} onMouseDown={e => { e.preventDefault(); add(c.email); }} className="w-full flex flex-col text-left px-3 py-1.5 hover:bg-muted">
+              <span className="text-sm">{c.name}</span>
+              <span className="text-xs text-muted-foreground">{c.email}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const ComposeEmail = ({ open, onClose, initial }: ComposeEmailProps) => {
+  const accounts = useMail(s => s.accounts);
   const [selectedAccountId, setSelectedAccountId] = useState<string>("");
   const [to, setTo] = useState<string[]>([]);
   const [cc, setCc] = useState<string[]>([]);
@@ -133,189 +90,110 @@ const ComposeEmail = ({ open, onClose }: ComposeEmailProps) => {
   const editorRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!user || !open) return;
-    (async () => {
-      const { data, error } = await supabase
-        .from("email_accounts")
-        .select("id, provider, email_address, display_name, status")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: true });
-      if (error) {
-        toast.error(`Failed to load accounts: ${error.message}`);
-        return;
-      }
-      const list = (data ?? []) as AccountRow[];
-      setAccounts(list);
-      if (list.length && !selectedAccountId) setSelectedAccountId(list[0].id);
-    })();
+    if (!open) return;
+    const acct = initial?.accountId ?? accounts.find(a => a.isDefault)?.id ?? accounts[0]?.id ?? "";
+    setSelectedAccountId(acct);
+    setTo(initial?.to ?? []);
+    setCc(initial?.cc ?? []);
+    setBcc(initial?.bcc ?? []);
+    setSubject(initial?.subject ?? "");
+    setShowCcBcc(!!(initial?.cc?.length || initial?.bcc?.length));
+    setMinimized(false);
+    // Set body after ref mounts
+    requestAnimationFrame(() => {
+      if (editorRef.current) editorRef.current.innerHTML = initial?.bodyHtml ?? "";
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, open]);
+  }, [open]);
 
   const execCommand = useCallback((command: string, value?: string) => {
     document.execCommand(command, false, value);
     editorRef.current?.focus();
   }, []);
 
-  const handleSend = async () => {
-    if (!selectedAccountId) {
-      toast.error("Connect an email account first");
-      return;
-    }
-    if (to.length === 0) {
-      toast.error("Please add at least one recipient");
-      return;
-    }
-    if (!subject.trim()) {
-      toast.error("Please add a subject");
-      return;
-    }
-
-    const html = editorRef.current?.innerHTML ?? "";
-    const text = editorRef.current?.innerText ?? "";
-
+  const doSend = (scheduledAt?: string) => {
+    if (!selectedAccountId) return toast.error("Select an account");
+    if (to.length === 0) return toast.error("Add at least one recipient");
+    if (!subject.trim()) return toast.error("Add a subject");
     setSending(true);
-    const { error } = await supabase.functions.invoke("email-send", {
-      body: {
-        account_id: selectedAccountId,
-        to,
-        cc: cc.length ? cc : undefined,
-        bcc: bcc.length ? bcc : undefined,
-        subject,
-        body_html: html,
-        body_text: text,
-      },
+    actions.sendMessage({
+      accountId: selectedAccountId,
+      to, cc, bcc,
+      subject,
+      bodyHtml: editorRef.current?.innerHTML ?? "",
+      inReplyTo: initial?.inReplyTo,
+      threadId: initial?.threadId,
+      scheduledAt,
     });
     setSending(false);
-
-    if (error) {
-      toast.error(`Send failed: ${error.message}`);
-      return;
-    }
-    const acct = accounts.find(a => a.id === selectedAccountId);
-    toast.success(`Email sent via ${acct?.email_address ?? "account"}`);
-    resetForm();
+    toast.success(scheduledAt ? "Scheduled" : "Sent");
     onClose();
   };
 
-  const resetForm = () => {
-    setTo([]);
-    setCc([]);
-    setBcc([]);
-    setSubject("");
-    setShowCcBcc(false);
-    setMinimized(false);
-    if (editorRef.current) editorRef.current.innerHTML = "";
-  };
-
-  const handleDiscard = () => {
-    resetForm();
+  const saveDraft = () => {
+    if (!selectedAccountId) return;
+    actions.saveDraft({
+      accountId: selectedAccountId,
+      to, cc, bcc, subject,
+      bodyHtml: editorRef.current?.innerHTML ?? "",
+      attachments: [],
+      inReplyTo: initial?.inReplyTo,
+      threadId: initial?.threadId,
+    });
+    toast.success("Draft saved");
     onClose();
   };
 
   if (!open) return null;
-
   const currentAccount = accounts.find(a => a.id === selectedAccountId);
 
   return (
-    <div
-      className={`fixed z-50 bg-card border border-border rounded-t-xl shadow-2xl flex flex-col transition-all duration-200 ${
-        minimized
-          ? "bottom-0 right-4 w-72 h-11"
-          : "bottom-0 right-4 w-full max-w-[560px] h-[520px] sm:h-[540px]"
-      }`}
-    >
-      <div
-        className="flex items-center justify-between px-4 py-2.5 bg-foreground/[0.03] border-b border-border rounded-t-xl cursor-pointer select-none"
-        onClick={() => setMinimized(!minimized)}
-      >
-        <span className="text-sm font-semibold text-foreground truncate">
-          {subject || "New Message"}
-        </span>
-        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-          <button onClick={() => setMinimized(!minimized)} className="p-1 hover:bg-muted rounded">
-            <Minus size={14} className="text-muted-foreground" />
-          </button>
-          <button onClick={handleDiscard} className="p-1 hover:bg-muted rounded">
-            <X size={14} className="text-muted-foreground" />
-          </button>
+    <div className={`fixed z-50 bg-card border border-border rounded-t-xl shadow-2xl flex flex-col transition-all duration-200 ${
+      minimized ? "bottom-0 right-4 w-72 h-11" : "bottom-0 right-4 w-full max-w-[560px] h-[560px]"
+    }`}>
+      <div className="flex items-center justify-between px-4 py-2.5 bg-foreground/[0.03] border-b border-border rounded-t-xl cursor-pointer select-none" onClick={() => setMinimized(!minimized)}>
+        <span className="text-sm font-semibold truncate">{subject || "New Message"}</span>
+        <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+          <button onClick={() => setMinimized(!minimized)} className="p-1 hover:bg-muted rounded"><Minus size={14} /></button>
+          <button onClick={saveDraft} className="p-1 hover:bg-muted rounded"><X size={14} /></button>
         </div>
       </div>
 
       {!minimized && (
         <>
           <div className="relative px-4 py-2 border-b border-border">
-            {accounts.length === 0 ? (
-              <span className="text-xs text-muted-foreground">No connected accounts. Add one in Settings.</span>
-            ) : (
-              <button
-                onClick={() => setProviderDropdownOpen(!providerDropdownOpen)}
-                className="flex items-center gap-2 text-sm text-foreground hover:bg-muted px-2 py-1 rounded transition-colors"
-              >
-                <span className={`w-4 h-4 rounded-full ${providerColorMap[currentAccount?.provider ?? ''] ?? 'bg-muted'}`} />
-                <span className="font-medium">{currentAccount?.email_address}</span>
-                <ChevronDown size={13} className="text-muted-foreground" />
-              </button>
-            )}
+            <button onClick={() => setProviderDropdownOpen(!providerDropdownOpen)} className="flex items-center gap-2 text-sm hover:bg-muted px-2 py-1 rounded">
+              <span className="w-3 h-3 rounded-full" style={{ background: currentAccount?.color }} />
+              <span className="font-medium">{currentAccount?.email ?? "Choose account"}</span>
+              <ChevronDown size={13} className="text-muted-foreground" />
+            </button>
             {providerDropdownOpen && (
-              <div className="absolute top-full left-4 mt-1 bg-popover border border-border rounded-lg shadow-lg z-10 py-1 min-w-[220px]">
-                {accounts.map((a) => (
-                  <button
-                    key={a.id}
-                    onClick={() => {
-                      setSelectedAccountId(a.id);
-                      setProviderDropdownOpen(false);
-                    }}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-muted transition-colors ${
-                      selectedAccountId === a.id ? "bg-muted/50 font-medium" : ""
-                    }`}
-                  >
-                    <span className={`w-4 h-4 rounded-full ${providerColorMap[a.provider] ?? 'bg-muted'}`} />
-                    <span className="truncate">{a.email_address}</span>
+              <div className="absolute top-full left-4 mt-1 bg-popover border border-border rounded-lg shadow-lg z-10 py-1 min-w-[240px]">
+                {accounts.map(a => (
+                  <button key={a.id} onClick={() => { setSelectedAccountId(a.id); setProviderDropdownOpen(false); }}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-muted ${selectedAccountId === a.id ? "bg-muted/50 font-medium" : ""}`}>
+                    <span className="w-3 h-3 rounded-full" style={{ background: a.color }} />
+                    <span className="truncate">{a.email}</span>
                   </button>
                 ))}
               </div>
             )}
           </div>
 
-          <EmailChipInput label="To" value={to} onChange={setTo} />
-
+          <ChipInput label="To" value={to} onChange={setTo} />
           {!showCcBcc && (
             <div className="px-4 py-1 border-b border-border">
-              <button
-                onClick={() => setShowCcBcc(true)}
-                className="text-xs text-primary hover:underline font-medium"
-              >
-                Cc / Bcc
-              </button>
+              <button onClick={() => setShowCcBcc(true)} className="text-xs text-primary hover:underline font-medium">Cc / Bcc</button>
             </div>
           )}
-
-          {showCcBcc && (
-            <>
-              <EmailChipInput label="Cc" value={cc} onChange={setCc} />
-              <EmailChipInput label="Bcc" value={bcc} onChange={setBcc} />
-            </>
-          )}
+          {showCcBcc && (<><ChipInput label="Cc" value={cc} onChange={setCc} /><ChipInput label="Bcc" value={bcc} onChange={setBcc} /></>)}
 
           <div className="px-4 py-2 border-b border-border">
-            <input
-              type="text"
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              placeholder="Subject"
-              maxLength={200}
-              className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/50"
-            />
+            <input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Subject" className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/50" />
           </div>
 
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <div
-              ref={editorRef}
-              contentEditable
-              className="flex-1 px-4 py-3 text-sm text-foreground outline-none overflow-y-auto"
-              style={{ minHeight: 80 }}
-              data-placeholder="Write your message..."
-            />
+          <div className="flex-1 overflow-hidden flex flex-col">
+            <div ref={editorRef} contentEditable className="flex-1 px-4 py-3 text-sm outline-none overflow-y-auto" style={{ minHeight: 80 }} />
           </div>
 
           <div className="flex items-center justify-between px-3 py-2 border-t border-border">
@@ -324,35 +202,18 @@ const ComposeEmail = ({ open, onClose }: ComposeEmailProps) => {
               <ToolbarButton icon={Italic} label="Italic" onClick={() => execCommand("italic")} />
               <ToolbarButton icon={Underline} label="Underline" onClick={() => execCommand("underline")} />
               <div className="w-px h-4 bg-border mx-1" />
-              <ToolbarButton icon={List} label="Bullet list" onClick={() => execCommand("insertUnorderedList")} />
-              <ToolbarButton icon={ListOrdered} label="Numbered list" onClick={() => execCommand("insertOrderedList")} />
+              <ToolbarButton icon={List} label="Bullets" onClick={() => execCommand("insertUnorderedList")} />
+              <ToolbarButton icon={ListOrdered} label="Numbered" onClick={() => execCommand("insertOrderedList")} />
               <div className="w-px h-4 bg-border mx-1" />
-              <ToolbarButton
-                icon={Link2}
-                label="Insert link"
-                onClick={() => {
-                  const url = prompt("Enter URL:");
-                  if (url) execCommand("createLink", url);
-                }}
-              />
-              <ToolbarButton icon={Paperclip} label="Attach file" onClick={() => toast.info("Attachments coming soon")} />
+              <ToolbarButton icon={Link2} label="Link" onClick={() => { const u = prompt("URL:"); if (u) execCommand("createLink", u); }} />
+              <ToolbarButton icon={Paperclip} label="Attach" onClick={() => toast.info("Attachments coming soon")} />
             </div>
 
             <div className="flex items-center gap-2">
-              <button
-                onClick={handleDiscard}
-                className="p-2 text-muted-foreground hover:text-destructive rounded transition-colors"
-                title="Discard"
-              >
-                <Trash2 size={16} />
-              </button>
-              <button
-                onClick={handleSend}
-                disabled={sending || accounts.length === 0}
-                className="flex items-center gap-1.5 bg-primary text-primary-foreground rounded-lg px-4 py-1.5 text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
-              >
-                <Send size={14} />
-                {sending ? "Sending..." : "Send"}
+              <button onClick={() => { onClose(); }} className="p-2 text-muted-foreground hover:text-destructive rounded" title="Discard"><Trash2 size={16} /></button>
+              <button onClick={() => doSend(new Date(Date.now() + 3600_000).toISOString())} className="p-2 text-muted-foreground hover:text-foreground rounded" title="Schedule +1h"><Clock size={16} /></button>
+              <button onClick={() => doSend()} disabled={sending} className="flex items-center gap-1.5 bg-primary text-primary-foreground rounded-lg px-4 py-1.5 text-sm font-semibold hover:opacity-90 disabled:opacity-50">
+                <Send size={14} /> {sending ? "Sending…" : "Send"}
               </button>
             </div>
           </div>
