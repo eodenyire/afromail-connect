@@ -22,6 +22,8 @@ const EmailDetail = ({ threadId, onBack, onReply }: EmailDetailProps) => {
   const state = useMail(s => s);
   const msgs = useMemo(() => threadId ? threadMessages(state, threadId) : [], [state, threadId]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [inlineOpen, setInlineOpen] = useState(false);
+  const inlineRef = useRef<HTMLDivElement>(null);
 
   if (!threadId || msgs.length === 0) {
     return (
