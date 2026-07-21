@@ -78,6 +78,7 @@ const ChipInput = ({ label, value, onChange }: { label: string; value: string[];
 
 const ComposeEmail = ({ open, onClose, initial }: ComposeEmailProps) => {
   const accounts = useMail(s => s.accounts);
+  const autosaveSeconds = useMail(s => s.settings.autosaveSeconds);
   const [selectedAccountId, setSelectedAccountId] = useState<string>("");
   const [to, setTo] = useState<string[]>([]);
   const [cc, setCc] = useState<string[]>([]);
@@ -87,7 +88,13 @@ const ComposeEmail = ({ open, onClose, initial }: ComposeEmailProps) => {
   const [providerDropdownOpen, setProviderDropdownOpen] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const [sending, setSending] = useState(false);
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [scheduleAt, setScheduleAt] = useState("");
+  const [draftId, setDraftId] = useState<string | undefined>(undefined);
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const [bodyTick, setBodyTick] = useState(0);
   const editorRef = useRef<HTMLDivElement>(null);
+  const dirtyRef = useRef(false);
 
   useEffect(() => {
     if (!open) return;
@@ -99,16 +106,47 @@ const ComposeEmail = ({ open, onClose, initial }: ComposeEmailProps) => {
     setSubject(initial?.subject ?? "");
     setShowCcBcc(!!(initial?.cc?.length || initial?.bcc?.length));
     setMinimized(false);
-    // Set body after ref mounts
+    setShowSchedule(false);
+    setScheduleAt("");
+    setDraftId(undefined);
+    setSavedAt(null);
+    dirtyRef.current = false;
     requestAnimationFrame(() => {
       if (editorRef.current) editorRef.current.innerHTML = initial?.bodyHtml ?? "";
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  // Autosave draft on interval when dirty
+  useEffect(() => {
+    if (!open) return;
+    const ms = Math.max(2, autosaveSeconds) * 1000;
+    const t = setInterval(() => {
+      if (!dirtyRef.current || !selectedAccountId) return;
+      const hasContent = to.length || cc.length || bcc.length || subject.trim() || editorRef.current?.innerHTML.trim();
+      if (!hasContent) return;
+      const saved = actions.saveDraft({
+        id: draftId,
+        accountId: selectedAccountId,
+        to, cc, bcc, subject,
+        bodyHtml: editorRef.current?.innerHTML ?? "",
+        attachments: [],
+        inReplyTo: initial?.inReplyTo,
+        threadId: initial?.threadId,
+      });
+      if (saved?.id && !draftId) setDraftId(saved.id);
+      setSavedAt(new Date());
+      dirtyRef.current = false;
+    }, ms);
+    return () => clearInterval(t);
+  }, [open, autosaveSeconds, selectedAccountId, to, cc, bcc, subject, draftId, initial?.inReplyTo, initial?.threadId, bodyTick]);
+
+  const markDirty = () => { dirtyRef.current = true; };
+
   const execCommand = useCallback((command: string, value?: string) => {
     document.execCommand(command, false, value);
     editorRef.current?.focus();
+    markDirty();
   }, []);
 
   const doSend = (scheduledAt?: string) => {
@@ -125,22 +163,34 @@ const ComposeEmail = ({ open, onClose, initial }: ComposeEmailProps) => {
       threadId: initial?.threadId,
       scheduledAt,
     });
+    if (draftId) actions.deleteDraft?.(draftId);
     setSending(false);
-    toast.success(scheduledAt ? "Scheduled" : "Sent");
+    toast.success(scheduledAt ? `Scheduled for ${new Date(scheduledAt).toLocaleString()}` : "Sent");
     onClose();
   };
 
+  const confirmSchedule = () => {
+    if (!scheduleAt) return toast.error("Pick a date & time");
+    const dt = new Date(scheduleAt);
+    if (isNaN(dt.getTime()) || dt.getTime() <= Date.now()) return toast.error("Pick a future time");
+    doSend(dt.toISOString());
+  };
+
   const saveDraft = () => {
-    if (!selectedAccountId) return;
-    actions.saveDraft({
-      accountId: selectedAccountId,
-      to, cc, bcc, subject,
-      bodyHtml: editorRef.current?.innerHTML ?? "",
-      attachments: [],
-      inReplyTo: initial?.inReplyTo,
-      threadId: initial?.threadId,
-    });
-    toast.success("Draft saved");
+    if (!selectedAccountId) { onClose(); return; }
+    const hasContent = to.length || cc.length || bcc.length || subject.trim() || editorRef.current?.innerHTML.trim();
+    if (hasContent) {
+      actions.saveDraft({
+        id: draftId,
+        accountId: selectedAccountId,
+        to, cc, bcc, subject,
+        bodyHtml: editorRef.current?.innerHTML ?? "",
+        attachments: [],
+        inReplyTo: initial?.inReplyTo,
+        threadId: initial?.threadId,
+      });
+      toast.success("Draft saved");
+    }
     onClose();
   };
 
