@@ -1,6 +1,6 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { Inbox, Star, Send, File, Trash2, Plus, Settings, LogOut, User, Clock, AlertCircle, Archive, Ban, CalendarClock, Tag, Folder } from "lucide-react";
+import { Inbox, Star, Send, File, Trash2, Plus, Settings, LogOut, User, Clock, AlertCircle, Archive, Ban, CalendarClock, Tag, Folder, Users } from "lucide-react";
 import { useMail, unreadCount, type SystemFolderId } from "@/lib/mailStore";
 import afromailLogo from "@/assets/afromail-logo.png";
 
@@ -105,6 +105,9 @@ const EmailSidebar = ({ activeView, onViewChange, onCompose }: EmailSidebarProps
       <div className="p-3 border-t border-sidebar-border space-y-0.5">
         <button onClick={() => navigate("/profile")} className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/50">
           <User size={16} /> Profile
+        </button>
+        <button onClick={() => navigate("/contacts")} className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/50">
+          <Users size={16} /> Contacts
         </button>
         <button onClick={() => navigate("/settings")} className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/50">
           <Settings size={16} /> Settings
