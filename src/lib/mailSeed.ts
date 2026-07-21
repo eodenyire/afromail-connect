@@ -292,6 +292,9 @@ const settings: Settings = {
   blockedSenders: [],
   language: "en",
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  defaultFolder: "inbox",
+  defaultLabelIds: [],
+  autosaveSeconds: 5,
 };
 
 export function seedState(): State {

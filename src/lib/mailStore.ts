@@ -125,6 +125,9 @@ export interface Settings {
   blockedSenders: string[];
   language: string;
   timezone: string;
+  defaultFolder: SystemFolderId;
+  defaultLabelIds: string[];
+  autosaveSeconds: number;
 }
 
 export interface State {
