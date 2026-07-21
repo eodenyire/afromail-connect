@@ -125,8 +125,9 @@ const ComposeEmail = ({ open, onClose, initial }: ComposeEmailProps) => {
       if (!dirtyRef.current || !selectedAccountId) return;
       const hasContent = to.length || cc.length || bcc.length || subject.trim() || editorRef.current?.innerHTML.trim();
       if (!hasContent) return;
-      const saved = actions.saveDraft({
-        id: draftId,
+      const id = draftId ?? `draft-${Date.now()}`;
+      actions.saveDraft({
+        id,
         accountId: selectedAccountId,
         to, cc, bcc, subject,
         bodyHtml: editorRef.current?.innerHTML ?? "",
@@ -134,7 +135,7 @@ const ComposeEmail = ({ open, onClose, initial }: ComposeEmailProps) => {
         inReplyTo: initial?.inReplyTo,
         threadId: initial?.threadId,
       });
-      if (saved?.id && !draftId) setDraftId(saved.id);
+      if (!draftId) setDraftId(id);
       setSavedAt(new Date());
       dirtyRef.current = false;
     }, ms);
@@ -163,7 +164,7 @@ const ComposeEmail = ({ open, onClose, initial }: ComposeEmailProps) => {
       threadId: initial?.threadId,
       scheduledAt,
     });
-    if (draftId) actions.deleteDraft?.(draftId);
+    if (draftId) actions.deleteDraft(draftId);
     setSending(false);
     toast.success(scheduledAt ? `Scheduled for ${new Date(scheduledAt).toLocaleString()}` : "Sent");
     onClose();
