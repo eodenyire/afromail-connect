@@ -106,6 +106,57 @@ const EmailDetail = ({ threadId, onBack, onReply }: EmailDetailProps) => {
             </div>
           );
         })}
+
+        {inlineOpen ? (
+          <div className="border border-border rounded-lg bg-card">
+            <div className="flex items-center justify-between px-4 py-2 border-b border-border">
+              <span className="text-xs font-semibold text-muted-foreground">Reply to {latest.fromName}</span>
+              <div className="flex items-center gap-1">
+                <button onClick={() => onReply(latest, "reply")} className="text-xs text-primary hover:underline px-2">Pop out</button>
+                <button onClick={() => { setInlineOpen(false); if (inlineRef.current) inlineRef.current.innerHTML = ""; }} className="p-1 hover:bg-muted rounded"><X size={14} /></button>
+              </div>
+            </div>
+            <div
+              ref={inlineRef}
+              contentEditable
+              className="px-4 py-3 text-sm outline-none min-h-[100px]"
+              data-placeholder="Type your reply…"
+            />
+            <div className="flex items-center justify-end gap-2 px-3 py-2 border-t border-border">
+              <button onClick={() => { setInlineOpen(false); if (inlineRef.current) inlineRef.current.innerHTML = ""; }} className="text-xs px-3 py-1.5 rounded-md hover:bg-muted">Cancel</button>
+              <button
+                onClick={() => {
+                  const bodyHtml = inlineRef.current?.innerHTML.trim() ?? "";
+                  if (!bodyHtml) return toast.error("Write something first");
+                  actions.sendMessage({
+                    accountId: latest.accountId,
+                    to: [latest.fromEmail],
+                    cc: [],
+                    bcc: [],
+                    subject: latest.subject.startsWith("Re:") ? latest.subject : `Re: ${latest.subject}`,
+                    bodyHtml,
+                    inReplyTo: latest.id,
+                    threadId: latest.threadId,
+                  });
+                  toast.success("Reply sent");
+                  setInlineOpen(false);
+                  if (inlineRef.current) inlineRef.current.innerHTML = "";
+                }}
+                className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground rounded-md px-3 py-1.5 text-xs font-semibold hover:opacity-90"
+              >
+                <Send size={13} /> Send reply
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <button onClick={() => setInlineOpen(true)} className="flex-1 text-left text-sm text-muted-foreground border border-border rounded-lg px-4 py-3 hover:bg-muted/40">
+              Reply to {latest.fromName}…
+            </button>
+            <button onClick={() => onReply(latest, "replyAll")} className="text-sm px-3 py-2 rounded-lg border border-border hover:bg-muted" title="Reply all"><ReplyAll size={14} /></button>
+            <button onClick={() => onReply(latest, "forward")} className="text-sm px-3 py-2 rounded-lg border border-border hover:bg-muted" title="Forward"><Forward size={14} /></button>
+          </div>
+        )}
       </div>
     </div>
   );
