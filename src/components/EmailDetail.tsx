@@ -1,5 +1,5 @@
-import { ArrowLeft, Star, Reply, ReplyAll, Forward, Trash2, MoreHorizontal, Paperclip, Archive, Ban, Clock, Tag } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ArrowLeft, Star, Reply, ReplyAll, Forward, Trash2, MoreHorizontal, Paperclip, Archive, Ban, Clock, Tag, Send, X } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
 import { useMail, threadMessages, actions, type Message } from "@/lib/mailStore";
 import { toast } from "sonner";
 
