@@ -78,6 +78,7 @@ const ChipInput = ({ label, value, onChange }: { label: string; value: string[];
 
 const ComposeEmail = ({ open, onClose, initial }: ComposeEmailProps) => {
   const accounts = useMail(s => s.accounts);
+  const autosaveSeconds = useMail(s => s.settings.autosaveSeconds);
   const [selectedAccountId, setSelectedAccountId] = useState<string>("");
   const [to, setTo] = useState<string[]>([]);
   const [cc, setCc] = useState<string[]>([]);
@@ -87,7 +88,13 @@ const ComposeEmail = ({ open, onClose, initial }: ComposeEmailProps) => {
   const [providerDropdownOpen, setProviderDropdownOpen] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const [sending, setSending] = useState(false);
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [scheduleAt, setScheduleAt] = useState("");
+  const [draftId, setDraftId] = useState<string | undefined>(undefined);
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const [bodyTick, setBodyTick] = useState(0);
   const editorRef = useRef<HTMLDivElement>(null);
+  const dirtyRef = useRef(false);
 
   useEffect(() => {
     if (!open) return;
@@ -99,16 +106,48 @@ const ComposeEmail = ({ open, onClose, initial }: ComposeEmailProps) => {
     setSubject(initial?.subject ?? "");
     setShowCcBcc(!!(initial?.cc?.length || initial?.bcc?.length));
     setMinimized(false);
-    // Set body after ref mounts
+    setShowSchedule(false);
+    setScheduleAt("");
+    setDraftId(undefined);
+    setSavedAt(null);
+    dirtyRef.current = false;
     requestAnimationFrame(() => {
       if (editorRef.current) editorRef.current.innerHTML = initial?.bodyHtml ?? "";
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  // Autosave draft on interval when dirty
+  useEffect(() => {
+    if (!open) return;
+    const ms = Math.max(2, autosaveSeconds) * 1000;
+    const t = setInterval(() => {
+      if (!dirtyRef.current || !selectedAccountId) return;
+      const hasContent = to.length || cc.length || bcc.length || subject.trim() || editorRef.current?.innerHTML.trim();
+      if (!hasContent) return;
+      const id = draftId ?? `draft-${Date.now()}`;
+      actions.saveDraft({
+        id,
+        accountId: selectedAccountId,
+        to, cc, bcc, subject,
+        bodyHtml: editorRef.current?.innerHTML ?? "",
+        attachments: [],
+        inReplyTo: initial?.inReplyTo,
+        threadId: initial?.threadId,
+      });
+      if (!draftId) setDraftId(id);
+      setSavedAt(new Date());
+      dirtyRef.current = false;
+    }, ms);
+    return () => clearInterval(t);
+  }, [open, autosaveSeconds, selectedAccountId, to, cc, bcc, subject, draftId, initial?.inReplyTo, initial?.threadId, bodyTick]);
+
+  const markDirty = () => { dirtyRef.current = true; };
+
   const execCommand = useCallback((command: string, value?: string) => {
     document.execCommand(command, false, value);
     editorRef.current?.focus();
+    markDirty();
   }, []);
 
   const doSend = (scheduledAt?: string) => {
@@ -125,22 +164,34 @@ const ComposeEmail = ({ open, onClose, initial }: ComposeEmailProps) => {
       threadId: initial?.threadId,
       scheduledAt,
     });
+    if (draftId) actions.deleteDraft(draftId);
     setSending(false);
-    toast.success(scheduledAt ? "Scheduled" : "Sent");
+    toast.success(scheduledAt ? `Scheduled for ${new Date(scheduledAt).toLocaleString()}` : "Sent");
     onClose();
   };
 
+  const confirmSchedule = () => {
+    if (!scheduleAt) return toast.error("Pick a date & time");
+    const dt = new Date(scheduleAt);
+    if (isNaN(dt.getTime()) || dt.getTime() <= Date.now()) return toast.error("Pick a future time");
+    doSend(dt.toISOString());
+  };
+
   const saveDraft = () => {
-    if (!selectedAccountId) return;
-    actions.saveDraft({
-      accountId: selectedAccountId,
-      to, cc, bcc, subject,
-      bodyHtml: editorRef.current?.innerHTML ?? "",
-      attachments: [],
-      inReplyTo: initial?.inReplyTo,
-      threadId: initial?.threadId,
-    });
-    toast.success("Draft saved");
+    if (!selectedAccountId) { onClose(); return; }
+    const hasContent = to.length || cc.length || bcc.length || subject.trim() || editorRef.current?.innerHTML.trim();
+    if (hasContent) {
+      actions.saveDraft({
+        id: draftId,
+        accountId: selectedAccountId,
+        to, cc, bcc, subject,
+        bodyHtml: editorRef.current?.innerHTML ?? "",
+        attachments: [],
+        inReplyTo: initial?.inReplyTo,
+        threadId: initial?.threadId,
+      });
+      toast.success("Draft saved");
+    }
     onClose();
   };
 
@@ -180,21 +231,37 @@ const ComposeEmail = ({ open, onClose, initial }: ComposeEmailProps) => {
             )}
           </div>
 
-          <ChipInput label="To" value={to} onChange={setTo} />
+          <ChipInput label="To" value={to} onChange={v => { setTo(v); markDirty(); }} />
           {!showCcBcc && (
             <div className="px-4 py-1 border-b border-border">
               <button onClick={() => setShowCcBcc(true)} className="text-xs text-primary hover:underline font-medium">Cc / Bcc</button>
             </div>
           )}
-          {showCcBcc && (<><ChipInput label="Cc" value={cc} onChange={setCc} /><ChipInput label="Bcc" value={bcc} onChange={setBcc} /></>)}
+          {showCcBcc && (<><ChipInput label="Cc" value={cc} onChange={v => { setCc(v); markDirty(); }} /><ChipInput label="Bcc" value={bcc} onChange={v => { setBcc(v); markDirty(); }} /></>)}
 
           <div className="px-4 py-2 border-b border-border">
-            <input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Subject" className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/50" />
+            <input value={subject} onChange={e => { setSubject(e.target.value); markDirty(); }} placeholder="Subject" className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/50" />
           </div>
 
           <div className="flex-1 overflow-hidden flex flex-col">
-            <div ref={editorRef} contentEditable className="flex-1 px-4 py-3 text-sm outline-none overflow-y-auto" style={{ minHeight: 80 }} />
+            <div ref={editorRef} contentEditable onInput={() => { markDirty(); setBodyTick(t => t + 1); }} className="flex-1 px-4 py-3 text-sm outline-none overflow-y-auto" style={{ minHeight: 80 }} />
           </div>
+
+          <div className="px-3 py-1 text-[11px] text-muted-foreground flex items-center justify-between border-t border-border">
+            <span>{savedAt ? `Draft saved ${savedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Draft autosaves as you type"}</span>
+          </div>
+
+          {showSchedule && (
+            <div className="px-3 py-2 border-t border-border bg-muted/30 flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-medium">Send at:</span>
+              <input type="datetime-local" value={scheduleAt} onChange={e => setScheduleAt(e.target.value)} className="bg-card border border-border rounded-md px-2 py-1 text-xs outline-none" />
+              <button onClick={() => { const dt = new Date(Date.now() + 3600_000); setScheduleAt(new Date(dt.getTime() - dt.getTimezoneOffset()*60000).toISOString().slice(0,16)); }} className="text-xs px-2 py-1 rounded border border-border hover:bg-muted">+1h</button>
+              <button onClick={() => { const dt = new Date(); dt.setDate(dt.getDate()+1); dt.setHours(9,0,0,0); setScheduleAt(new Date(dt.getTime() - dt.getTimezoneOffset()*60000).toISOString().slice(0,16)); }} className="text-xs px-2 py-1 rounded border border-border hover:bg-muted">Tomorrow 9am</button>
+              <div className="flex-1" />
+              <button onClick={() => setShowSchedule(false)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1">Cancel</button>
+              <button onClick={confirmSchedule} className="text-xs bg-primary text-primary-foreground rounded-md px-3 py-1 font-semibold hover:opacity-90">Schedule</button>
+            </div>
+          )}
 
           <div className="flex items-center justify-between px-3 py-2 border-t border-border">
             <div className="flex items-center gap-0.5">
@@ -210,8 +277,8 @@ const ComposeEmail = ({ open, onClose, initial }: ComposeEmailProps) => {
             </div>
 
             <div className="flex items-center gap-2">
-              <button onClick={() => { onClose(); }} className="p-2 text-muted-foreground hover:text-destructive rounded" title="Discard"><Trash2 size={16} /></button>
-              <button onClick={() => doSend(new Date(Date.now() + 3600_000).toISOString())} className="p-2 text-muted-foreground hover:text-foreground rounded" title="Schedule +1h"><Clock size={16} /></button>
+              <button onClick={() => { if (draftId) actions.deleteDraft(draftId); onClose(); }} className="p-2 text-muted-foreground hover:text-destructive rounded" title="Discard"><Trash2 size={16} /></button>
+              <button onClick={() => setShowSchedule(s => !s)} className={`p-2 rounded ${showSchedule ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground"}`} title="Schedule send"><Clock size={16} /></button>
               <button onClick={() => doSend()} disabled={sending} className="flex items-center gap-1.5 bg-primary text-primary-foreground rounded-lg px-4 py-1.5 text-sm font-semibold hover:opacity-90 disabled:opacity-50">
                 <Send size={14} /> {sending ? "Sending…" : "Send"}
               </button>
