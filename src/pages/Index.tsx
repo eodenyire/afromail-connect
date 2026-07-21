@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import EmailSidebar from "@/components/EmailSidebar";
 import EmailList, { type ThreadRow } from "@/components/EmailList";
 import EmailDetail from "@/components/EmailDetail";
@@ -14,7 +15,9 @@ import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 
 const Index = () => {
   const { user } = useAuth();
-  const [activeView, setActiveView] = useState("inbox");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const defaultFolder = useMail(s => s.settings.defaultFolder);
+  const [activeView, setActiveView] = useState<string>(defaultFolder);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
@@ -23,6 +26,17 @@ const Index = () => {
   const [composeInitial, setComposeInitial] = useState<ComposeState | undefined>();
 
   useEffect(() => { setActiveUser(user?.id); }, [user?.id]);
+
+  // Deep-link: /?compose=email@x.com opens the composer prefilled.
+  useEffect(() => {
+    const to = searchParams.get("compose");
+    if (to) {
+      setComposeInitial({ to: [to] });
+      setComposeOpen(true);
+      searchParams.delete("compose");
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const state = useMail(s => s);
 
