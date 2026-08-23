@@ -1,6 +1,10 @@
-import { Star, Paperclip, Mail, MailOpen, Trash2, X, Pin } from "lucide-react";
+import { Star, Paperclip, Mail, MailOpen, Trash2, X, Pin, FolderInput, Tag } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useMail, type Message, type Account, type Label } from "@/lib/mailStore";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useMail, type Message, type Account, type Label, type SystemFolderId } from "@/lib/mailStore";
 
 export interface ThreadRow {
   threadId: string;
@@ -24,7 +28,18 @@ interface EmailListProps {
   onBulkMarkUnread: () => void;
   onBulkStar: () => void;
   onBulkDelete: () => void;
+  onBulkMove: (folderId: SystemFolderId | string) => void;
+  onBulkApplyLabel: (labelId: string) => void;
+  onBulkRemoveLabel: (labelId: string) => void;
 }
+
+const moveTargets: { id: SystemFolderId; label: string }[] = [
+  { id: "inbox", label: "Inbox" },
+  { id: "all", label: "Archive (All Mail)" },
+  { id: "important", label: "Important" },
+  { id: "spam", label: "Spam" },
+  { id: "trash", label: "Trash" },
+];
 
 function formatDate(dateStr: string) {
   const d = new Date(dateStr);
@@ -43,9 +58,11 @@ const EmailList = ({
   threads, selectedThreadId, onSelect,
   selectedIds, onToggleSelect, onSelectAll, onDeselectAll,
   onBulkMarkRead, onBulkMarkUnread, onBulkStar, onBulkDelete,
+  onBulkMove, onBulkApplyLabel, onBulkRemoveLabel,
 }: EmailListProps) => {
   const accounts = useMail(s => s.accounts);
   const labels = useMail(s => s.labels);
+  const customFolders = useMail(s => s.customFolders);
   const hasSelection = selectedIds.size > 0;
   const allSelected = threads.length > 0 && selectedIds.size === threads.length;
 
@@ -54,7 +71,7 @@ const EmailList = ({
 
   return (
     <div className="flex-1 overflow-y-auto flex flex-col">
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/30 flex-shrink-0">
+      <div className="flex items-center gap-1 px-4 py-2 border-b border-border bg-muted/30 flex-shrink-0">
         <Checkbox
           checked={allSelected}
           onCheckedChange={() => allSelected ? onDeselectAll() : onSelectAll()}
@@ -66,6 +83,45 @@ const EmailList = ({
             <button onClick={onBulkMarkRead} title="Mark read" className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground"><MailOpen size={14} /></button>
             <button onClick={onBulkMarkUnread} title="Mark unread" className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground"><Mail size={14} /></button>
             <button onClick={onBulkStar} title="Star" className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground"><Star size={14} /></button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button title="Move to folder" className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground"><FolderInput size={14} /></button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52 bg-popover z-50">
+                <DropdownMenuLabel className="text-xs">Move to</DropdownMenuLabel>
+                {moveTargets.map(f => (
+                  <DropdownMenuItem key={f.id} onSelect={() => onBulkMove(f.id)}>{f.label}</DropdownMenuItem>
+                ))}
+                {customFolders.length > 0 && <DropdownMenuSeparator />}
+                {customFolders.map(f => (
+                  <DropdownMenuItem key={f.id} onSelect={() => onBulkMove(f.id)}>{f.name}</DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button title="Apply label" className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground"><Tag size={14} /></button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 bg-popover z-50">
+                <DropdownMenuLabel className="text-xs">Apply label</DropdownMenuLabel>
+                {labels.map(l => (
+                  <DropdownMenuItem key={l.id} onSelect={() => onBulkApplyLabel(l.id)}>
+                    <span className="w-2.5 h-2.5 rounded-full mr-2" style={{ background: `hsl(${l.color})` }} />
+                    {l.name}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs">Remove label</DropdownMenuLabel>
+                {labels.map(l => (
+                  <DropdownMenuItem key={`rm-${l.id}`} onSelect={() => onBulkRemoveLabel(l.id)} className="text-muted-foreground">
+                    Remove “{l.name}”
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             <button onClick={onBulkDelete} title="Delete" className="p-1.5 rounded hover:bg-muted text-destructive"><Trash2 size={14} /></button>
             <button onClick={onDeselectAll} title="Cancel" className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground"><X size={14} /></button>
           </>
@@ -73,6 +129,7 @@ const EmailList = ({
           <span className="text-xs text-muted-foreground">{threads.length} conversations</span>
         )}
       </div>
+
 
       {threads.length === 0 ? (
         <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm p-8 text-center">
