@@ -75,6 +75,9 @@ export interface Message {
   pinned?: boolean;
   snoozedUntil?: string;
   scheduledAt?: string;
+  deliveryStatus?: "queued" | "sending" | "sent" | "failed";
+  deliveryError?: string;
+  deliveryAttempts?: number;
   labelIds: string[];
   attachments: Attachment[];
   inReplyTo?: string;
