@@ -75,6 +75,9 @@ export interface Message {
   pinned?: boolean;
   snoozedUntil?: string;
   scheduledAt?: string;
+  deliveryStatus?: "queued" | "sending" | "sent" | "failed";
+  deliveryError?: string;
+  deliveryAttempts?: number;
   labelIds: string[];
   attachments: Attachment[];
   inReplyTo?: string;
@@ -344,6 +347,8 @@ export const actions = {
         attachments: opts.attachments ?? [],
         inReplyTo: opts.inReplyTo,
         scheduledAt: opts.scheduledAt,
+        deliveryStatus: opts.scheduledAt ? "queued" : "sent",
+        deliveryAttempts: opts.scheduledAt ? 0 : 1,
       };
       s.messages.unshift(msg);
       // upsert contacts
@@ -356,6 +361,91 @@ export const actions = {
         }
       });
     });
+  },
+
+  // delivery queue (scheduled sends)
+  // Runs the mock "mail transfer agent": due queued messages either deliver or fail.
+  processQueue() {
+    const now = Date.now();
+    const due = state.messages.filter(m =>
+      m.deliveryStatus === "queued" && m.scheduledAt && +new Date(m.scheduledAt) <= now
+    );
+    if (due.length === 0) return;
+    update(s => {
+      due.forEach(d => {
+        const m = s.messages.find(x => x.id === d.id);
+        if (!m) return;
+        const badRecipient = m.to.find(a => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a) || /\.invalid$/i.test(a));
+        m.deliveryAttempts = (m.deliveryAttempts ?? 0) + 1;
+        if (badRecipient) {
+          m.deliveryStatus = "failed";
+          m.deliveryError = `Recipient rejected: ${badRecipient}`;
+        } else {
+          m.deliveryStatus = "sent";
+          m.deliveryError = undefined;
+          m.folderId = "sent";
+          m.scheduledAt = undefined;
+          m.date = new Date().toISOString();
+        }
+      });
+    });
+  },
+  sendQueuedNow(ids: string[]) {
+    update(s => s.messages.forEach(m => {
+      if (!ids.includes(m.id)) return;
+      m.scheduledAt = new Date(Date.now() - 1000).toISOString();
+      m.deliveryStatus = "queued";
+      m.deliveryError = undefined;
+    }));
+    actions.processQueue();
+  },
+  retryDelivery(ids: string[]) {
+    update(s => s.messages.forEach(m => {
+      if (!ids.includes(m.id)) return;
+      m.deliveryStatus = "queued";
+      m.deliveryError = undefined;
+      m.folderId = "scheduled";
+      m.scheduledAt = new Date(Date.now() - 1000).toISOString();
+    }));
+    actions.processQueue();
+  },
+  cancelScheduled(ids: string[]) {
+    update(s => {
+      s.messages.forEach(m => {
+        if (!ids.includes(m.id)) return;
+        m.deliveryStatus = undefined;
+        m.scheduledAt = undefined;
+        m.folderId = "drafts";
+      });
+    });
+  },
+  rescheduleDelivery(id: string, whenISO: string) {
+    update(s => {
+      const m = s.messages.find(x => x.id === id);
+      if (!m) return;
+      m.scheduledAt = whenISO;
+      m.date = whenISO;
+      m.deliveryStatus = "queued";
+      m.deliveryError = undefined;
+      m.folderId = "scheduled";
+    });
+  },
+
+  // contacts from a sender
+  upsertContactFromEmail(name: string, email: string, notes?: string): "created" | "updated" {
+    let result: "created" | "updated" = "created";
+    update(s => {
+      const existing = s.contacts.find(c => c.email.toLowerCase() === email.toLowerCase());
+      if (existing) {
+        result = "updated";
+        existing.name = name || existing.name;
+        if (notes) existing.notes = notes;
+        existing.lastContacted = new Date().toISOString();
+      } else {
+        s.contacts.unshift({ id: uid(), name: name || email.split("@")[0], email, notes, lastContacted: new Date().toISOString() });
+      }
+    });
+    return result;
   },
 
   // drafts

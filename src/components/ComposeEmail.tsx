@@ -1,7 +1,20 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { X, ChevronDown, Bold, Italic, Underline, List, ListOrdered, Link2, Paperclip, Trash2, Send, Minus, Clock } from "lucide-react";
+import { X, ChevronDown, Bold, Italic, Underline, List, ListOrdered, Link2, Paperclip, Trash2, Send, Minus, Clock, FileText } from "lucide-react";
 import { toast } from "sonner";
-import { useMail, actions } from "@/lib/mailStore";
+import { useMail, actions, type Attachment } from "@/lib/mailStore";
+
+const MAX_ATTACHMENT_BYTES = 2 * 1024 * 1024; // keep localStorage sane
+
+const readFileAsDataUrl = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(file);
+  });
+
+const formatBytes = (b: number) => b < 1024 ? `${b} B` : b < 1024 * 1024 ? `${Math.round(b / 1024)} KB` : `${(b / 1048576).toFixed(1)} MB`;
+
 
 export interface ComposeState {
   to?: string[];
