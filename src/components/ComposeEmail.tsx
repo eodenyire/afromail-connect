@@ -106,8 +106,28 @@ const ComposeEmail = ({ open, onClose, initial }: ComposeEmailProps) => {
   const [draftId, setDraftId] = useState<string | undefined>(undefined);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [bodyTick, setBodyTick] = useState(0);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [dragOver, setDragOver] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const dirtyRef = useRef(false);
+
+  const addFiles = useCallback(async (files: FileList | File[]) => {
+    const list = Array.from(files);
+    const next: Attachment[] = [];
+    for (const f of list) {
+      if (f.size > MAX_ATTACHMENT_BYTES) { toast.error(`${f.name} is larger than 2 MB`); continue; }
+      try {
+        const url = await readFileAsDataUrl(f);
+        next.push({ id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name: f.name, size: f.size, mime: f.type || "application/octet-stream", url });
+      } catch { toast.error(`Could not read ${f.name}`); }
+    }
+    if (next.length) {
+      setAttachments(prev => [...prev, ...next]);
+      dirtyRef.current = true;
+      toast.success(`${next.length} file${next.length > 1 ? "s" : ""} attached`);
+    }
+  }, []);
 
   useEffect(() => {
     if (!open) return;
