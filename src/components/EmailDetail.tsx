@@ -87,11 +87,18 @@ const EmailDetail = ({ threadId, onBack, onReply }: EmailDetailProps) => {
                   {m.attachments.length > 0 && (
                     <div className="flex flex-wrap gap-2 mb-3">
                       {m.attachments.map(a => (
-                        <div key={a.id} className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 border border-border text-xs">
+                        <a
+                          key={a.id}
+                          href={a.url ?? "#"}
+                          download={a.name}
+                          onClick={e => { if (!a.url) { e.preventDefault(); toast.error("This attachment has no stored file"); } }}
+                          className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 border border-border text-xs hover:bg-muted transition-colors"
+                        >
                           <Paperclip size={12} className="text-muted-foreground" />
-                          <span>{a.name}</span>
-                          <span className="text-muted-foreground">{Math.round(a.size / 1024)} KB</span>
-                        </div>
+                          <span className="max-w-[200px] truncate">{a.name}</span>
+                          <span className="text-muted-foreground">{formatBytes(a.size)}</span>
+                          <Download size={12} className="text-muted-foreground" />
+                        </a>
                       ))}
                     </div>
                   )}
