@@ -196,6 +196,7 @@ const ComposeEmail = ({ open, onClose, initial }: ComposeEmailProps) => {
       bodyHtml: editorRef.current?.innerHTML ?? "",
       inReplyTo: initial?.inReplyTo,
       threadId: initial?.threadId,
+      attachments,
       scheduledAt,
     });
     if (draftId) actions.deleteDraft(draftId);
