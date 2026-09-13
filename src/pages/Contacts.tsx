@@ -29,6 +29,26 @@ const Contacts = () => {
   const openEdit = (c: Contact) => { setForm({ name: c.name, email: c.email, notes: c.notes ?? "" }); setEditing(c); setCreating(true); };
   const close = () => { setCreating(false); setEditing(null); };
 
+  // Auto-fill the contact form when arriving from an email sender.
+  useEffect(() => {
+    const email = searchParams.get("email");
+    if (!email) return;
+    const name = searchParams.get("name") ?? "";
+    const existing = contacts.find(c => c.email.toLowerCase() === email.toLowerCase());
+    if (existing) {
+      setForm({ name: name || existing.name, email: existing.email, notes: existing.notes ?? "" });
+      setEditing(existing);
+    } else {
+      setForm({ name: name || email.split("@")[0], email, notes: "" });
+      setEditing(null);
+    }
+    setCreating(true);
+    searchParams.delete("email");
+    searchParams.delete("name");
+    setSearchParams(searchParams, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   const save = () => {
     if (!form.name.trim() || !form.email.trim()) return toast.error("Name and email required");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return toast.error("Invalid email");
