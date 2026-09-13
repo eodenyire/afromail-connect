@@ -1,7 +1,10 @@
-import { ArrowLeft, Star, Reply, ReplyAll, Forward, Trash2, MoreHorizontal, Paperclip, Archive, Ban, Clock, Tag, Send, X } from "lucide-react";
+import { ArrowLeft, Star, Reply, ReplyAll, Forward, Trash2, MoreHorizontal, Paperclip, Archive, Ban, Clock, Tag, Send, X, Download, UserPlus } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useMail, threadMessages, actions, type Message } from "@/lib/mailStore";
 import { toast } from "sonner";
+
+const formatBytes = (b: number) => b < 1024 ? `${b} B` : b < 1024 * 1024 ? `${Math.round(b / 1024)} KB` : `${(b / 1048576).toFixed(1)} MB`;
 
 interface EmailDetailProps {
   threadId: string | null;
