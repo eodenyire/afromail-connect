@@ -111,6 +111,13 @@ const EmailDetail = ({ threadId, onBack, onReply }: EmailDetailProps) => {
                     <button onClick={() => onReply(m, "reply")} className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-border hover:bg-muted"><Reply size={13} /> Reply</button>
                     <button onClick={() => onReply(m, "replyAll")} className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-border hover:bg-muted"><ReplyAll size={13} /> Reply all</button>
                     <button onClick={() => onReply(m, "forward")} className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-border hover:bg-muted"><Forward size={13} /> Forward</button>
+                    <button
+                      onClick={() => navigate(`/contacts?name=${encodeURIComponent(m.fromName)}&email=${encodeURIComponent(m.fromEmail)}`)}
+                      className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-border hover:bg-muted"
+                    >
+                      <UserPlus size={13} />
+                      {state.contacts.some(c => c.email.toLowerCase() === m.fromEmail.toLowerCase()) ? "Update contact" : "Add contact"}
+                    </button>
                   </div>
                 </div>
               )}
