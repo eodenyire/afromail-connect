@@ -174,7 +174,7 @@ const ComposeEmail = ({ open, onClose, initial }: ComposeEmailProps) => {
       dirtyRef.current = false;
     }, ms);
     return () => clearInterval(t);
-  }, [open, autosaveSeconds, selectedAccountId, to, cc, bcc, subject, draftId, initial?.inReplyTo, initial?.threadId, bodyTick]);
+  }, [open, autosaveSeconds, selectedAccountId, to, cc, bcc, subject, draftId, initial?.inReplyTo, initial?.threadId, bodyTick, attachments]);
 
   const markDirty = () => { dirtyRef.current = true; };
 
