@@ -142,6 +142,7 @@ const ComposeEmail = ({ open, onClose, initial }: ComposeEmailProps) => {
     setShowSchedule(false);
     setScheduleAt("");
     setDraftId(undefined);
+    setAttachments([]);
     setSavedAt(null);
     dirtyRef.current = false;
     requestAnimationFrame(() => {
