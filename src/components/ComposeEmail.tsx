@@ -278,9 +278,40 @@ const ComposeEmail = ({ open, onClose, initial }: ComposeEmailProps) => {
             <input value={subject} onChange={e => { setSubject(e.target.value); markDirty(); }} placeholder="Subject" className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/50" />
           </div>
 
-          <div className="flex-1 overflow-hidden flex flex-col">
+          <div
+            className={`flex-1 overflow-hidden flex flex-col relative ${dragOver ? "bg-primary/5 ring-2 ring-inset ring-primary/40" : ""}`}
+            onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={e => { e.preventDefault(); setDragOver(false); if (e.dataTransfer.files?.length) addFiles(e.dataTransfer.files); }}
+          >
             <div ref={editorRef} contentEditable onInput={() => { markDirty(); setBodyTick(t => t + 1); }} className="flex-1 px-4 py-3 text-sm outline-none overflow-y-auto" style={{ minHeight: 80 }} />
+            {dragOver && (
+              <div className="absolute inset-0 flex items-center justify-center text-sm font-medium text-primary pointer-events-none">
+                Drop files to attach
+              </div>
+            )}
           </div>
+
+          {attachments.length > 0 && (
+            <div className="px-3 py-2 border-t border-border flex flex-wrap gap-2">
+              {attachments.map(a => (
+                <span key={a.id} className="inline-flex items-center gap-2 bg-muted rounded-md px-2 py-1 text-xs">
+                  <FileText size={12} className="text-muted-foreground" />
+                  <span className="max-w-[160px] truncate">{a.name}</span>
+                  <span className="text-muted-foreground">{formatBytes(a.size)}</span>
+                  <button onClick={() => { setAttachments(prev => prev.filter(x => x.id !== a.id)); dirtyRef.current = true; }} className="hover:text-destructive"><X size={12} /></button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={e => { if (e.target.files?.length) addFiles(e.target.files); e.target.value = ""; }}
+          />
 
           <div className="px-3 py-1 text-[11px] text-muted-foreground flex items-center justify-between border-t border-border">
             <span>{savedAt ? `Draft saved ${savedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Draft autosaves as you type"}</span>
