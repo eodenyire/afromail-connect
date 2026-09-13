@@ -125,6 +125,9 @@ const Index = () => {
   const handleBulkMarkUnread = () => { actions.toggleRead(bulkIds(), false); setSelectedIds(new Set()); };
   const handleBulkStar = () => { actions.toggleStar(bulkIds()); setSelectedIds(new Set()); };
   const handleBulkDelete = () => { actions.trash(bulkIds()); setSelectedIds(new Set()); if (selectedThreadId && selectedIds.has(selectedThreadId)) setSelectedThreadId(null); };
+  const handleBulkMove = (folderId: string) => { actions.moveToFolder(bulkIds(), folderId); setSelectedIds(new Set()); setSelectedThreadId(null); };
+  const handleBulkApplyLabel = (labelId: string) => { actions.applyLabel(bulkIds(), labelId); setSelectedIds(new Set()); };
+  const handleBulkRemoveLabel = (labelId: string) => { actions.removeLabel(bulkIds(), labelId); setSelectedIds(new Set()); };
 
   useKeyboardShortcuts({
     "c": () => openCompose(),
