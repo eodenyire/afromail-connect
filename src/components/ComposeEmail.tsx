@@ -339,7 +339,7 @@ const ComposeEmail = ({ open, onClose, initial }: ComposeEmailProps) => {
               <ToolbarButton icon={ListOrdered} label="Numbered" onClick={() => execCommand("insertOrderedList")} />
               <div className="w-px h-4 bg-border mx-1" />
               <ToolbarButton icon={Link2} label="Link" onClick={() => { const u = prompt("URL:"); if (u) execCommand("createLink", u); }} />
-              <ToolbarButton icon={Paperclip} label="Attach" onClick={() => toast.info("Attachments coming soon")} />
+              <ToolbarButton icon={Paperclip} label="Attach files" onClick={() => fileInputRef.current?.click()} />
             </div>
 
             <div className="flex items-center gap-2">
