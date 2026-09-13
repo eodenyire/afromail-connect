@@ -210,6 +210,8 @@ const Index = () => {
       <div className={`flex-1 flex flex-col bg-card ${selectedThreadId ? "flex" : "hidden md:flex"}`}>
         <EmailDetail threadId={selectedThreadId} onBack={() => setSelectedThreadId(null)} onReply={handleReply} />
       </div>
+      </>
+      )}
 
       <ComposeEmail open={composeOpen} onClose={() => setComposeOpen(false)} initial={composeInitial} />
       <CommandPalette onCompose={() => openCompose()} onFolderChange={setActiveView} />
