@@ -23,6 +23,7 @@ const getInitials = (n: string) => n.split(" ").map(w => w[0]).join("").slice(0,
 
 const EmailDetail = ({ threadId, onBack, onReply }: EmailDetailProps) => {
   const state = useMail(s => s);
+  const navigate = useNavigate();
   const msgs = useMemo(() => threadId ? threadMessages(state, threadId) : [], [state, threadId]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [inlineOpen, setInlineOpen] = useState(false);
