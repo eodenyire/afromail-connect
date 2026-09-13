@@ -221,7 +221,7 @@ const ComposeEmail = ({ open, onClose, initial }: ComposeEmailProps) => {
         accountId: selectedAccountId,
         to, cc, bcc, subject,
         bodyHtml: editorRef.current?.innerHTML ?? "",
-        attachments: [],
+        attachments,
         inReplyTo: initial?.inReplyTo,
         threadId: initial?.threadId,
       });
