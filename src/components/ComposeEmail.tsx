@@ -106,8 +106,28 @@ const ComposeEmail = ({ open, onClose, initial }: ComposeEmailProps) => {
   const [draftId, setDraftId] = useState<string | undefined>(undefined);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [bodyTick, setBodyTick] = useState(0);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [dragOver, setDragOver] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const dirtyRef = useRef(false);
+
+  const addFiles = useCallback(async (files: FileList | File[]) => {
+    const list = Array.from(files);
+    const next: Attachment[] = [];
+    for (const f of list) {
+      if (f.size > MAX_ATTACHMENT_BYTES) { toast.error(`${f.name} is larger than 2 MB`); continue; }
+      try {
+        const url = await readFileAsDataUrl(f);
+        next.push({ id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name: f.name, size: f.size, mime: f.type || "application/octet-stream", url });
+      } catch { toast.error(`Could not read ${f.name}`); }
+    }
+    if (next.length) {
+      setAttachments(prev => [...prev, ...next]);
+      dirtyRef.current = true;
+      toast.success(`${next.length} file${next.length > 1 ? "s" : ""} attached`);
+    }
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -122,6 +142,7 @@ const ComposeEmail = ({ open, onClose, initial }: ComposeEmailProps) => {
     setShowSchedule(false);
     setScheduleAt("");
     setDraftId(undefined);
+    setAttachments([]);
     setSavedAt(null);
     dirtyRef.current = false;
     requestAnimationFrame(() => {
@@ -144,7 +165,7 @@ const ComposeEmail = ({ open, onClose, initial }: ComposeEmailProps) => {
         accountId: selectedAccountId,
         to, cc, bcc, subject,
         bodyHtml: editorRef.current?.innerHTML ?? "",
-        attachments: [],
+        attachments,
         inReplyTo: initial?.inReplyTo,
         threadId: initial?.threadId,
       });
@@ -153,7 +174,7 @@ const ComposeEmail = ({ open, onClose, initial }: ComposeEmailProps) => {
       dirtyRef.current = false;
     }, ms);
     return () => clearInterval(t);
-  }, [open, autosaveSeconds, selectedAccountId, to, cc, bcc, subject, draftId, initial?.inReplyTo, initial?.threadId, bodyTick]);
+  }, [open, autosaveSeconds, selectedAccountId, to, cc, bcc, subject, draftId, initial?.inReplyTo, initial?.threadId, bodyTick, attachments]);
 
   const markDirty = () => { dirtyRef.current = true; };
 
@@ -175,6 +196,7 @@ const ComposeEmail = ({ open, onClose, initial }: ComposeEmailProps) => {
       bodyHtml: editorRef.current?.innerHTML ?? "",
       inReplyTo: initial?.inReplyTo,
       threadId: initial?.threadId,
+      attachments,
       scheduledAt,
     });
     if (draftId) actions.deleteDraft(draftId);
@@ -199,7 +221,7 @@ const ComposeEmail = ({ open, onClose, initial }: ComposeEmailProps) => {
         accountId: selectedAccountId,
         to, cc, bcc, subject,
         bodyHtml: editorRef.current?.innerHTML ?? "",
-        attachments: [],
+        attachments,
         inReplyTo: initial?.inReplyTo,
         threadId: initial?.threadId,
       });
@@ -256,9 +278,40 @@ const ComposeEmail = ({ open, onClose, initial }: ComposeEmailProps) => {
             <input value={subject} onChange={e => { setSubject(e.target.value); markDirty(); }} placeholder="Subject" className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/50" />
           </div>
 
-          <div className="flex-1 overflow-hidden flex flex-col">
+          <div
+            className={`flex-1 overflow-hidden flex flex-col relative ${dragOver ? "bg-primary/5 ring-2 ring-inset ring-primary/40" : ""}`}
+            onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={e => { e.preventDefault(); setDragOver(false); if (e.dataTransfer.files?.length) addFiles(e.dataTransfer.files); }}
+          >
             <div ref={editorRef} contentEditable onInput={() => { markDirty(); setBodyTick(t => t + 1); }} className="flex-1 px-4 py-3 text-sm outline-none overflow-y-auto" style={{ minHeight: 80 }} />
+            {dragOver && (
+              <div className="absolute inset-0 flex items-center justify-center text-sm font-medium text-primary pointer-events-none">
+                Drop files to attach
+              </div>
+            )}
           </div>
+
+          {attachments.length > 0 && (
+            <div className="px-3 py-2 border-t border-border flex flex-wrap gap-2">
+              {attachments.map(a => (
+                <span key={a.id} className="inline-flex items-center gap-2 bg-muted rounded-md px-2 py-1 text-xs">
+                  <FileText size={12} className="text-muted-foreground" />
+                  <span className="max-w-[160px] truncate">{a.name}</span>
+                  <span className="text-muted-foreground">{formatBytes(a.size)}</span>
+                  <button onClick={() => { setAttachments(prev => prev.filter(x => x.id !== a.id)); dirtyRef.current = true; }} className="hover:text-destructive"><X size={12} /></button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={e => { if (e.target.files?.length) addFiles(e.target.files); e.target.value = ""; }}
+          />
 
           <div className="px-3 py-1 text-[11px] text-muted-foreground flex items-center justify-between border-t border-border">
             <span>{savedAt ? `Draft saved ${savedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Draft autosaves as you type"}</span>
@@ -286,7 +339,7 @@ const ComposeEmail = ({ open, onClose, initial }: ComposeEmailProps) => {
               <ToolbarButton icon={ListOrdered} label="Numbered" onClick={() => execCommand("insertOrderedList")} />
               <div className="w-px h-4 bg-border mx-1" />
               <ToolbarButton icon={Link2} label="Link" onClick={() => { const u = prompt("URL:"); if (u) execCommand("createLink", u); }} />
-              <ToolbarButton icon={Paperclip} label="Attach" onClick={() => toast.info("Attachments coming soon")} />
+              <ToolbarButton icon={Paperclip} label="Attach files" onClick={() => fileInputRef.current?.click()} />
             </div>
 
             <div className="flex items-center gap-2">

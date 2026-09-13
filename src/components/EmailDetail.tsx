@@ -1,7 +1,10 @@
-import { ArrowLeft, Star, Reply, ReplyAll, Forward, Trash2, MoreHorizontal, Paperclip, Archive, Ban, Clock, Tag, Send, X } from "lucide-react";
+import { ArrowLeft, Star, Reply, ReplyAll, Forward, Trash2, MoreHorizontal, Paperclip, Archive, Ban, Clock, Tag, Send, X, Download, UserPlus } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useMail, threadMessages, actions, type Message } from "@/lib/mailStore";
 import { toast } from "sonner";
+
+const formatBytes = (b: number) => b < 1024 ? `${b} B` : b < 1024 * 1024 ? `${Math.round(b / 1024)} KB` : `${(b / 1048576).toFixed(1)} MB`;
 
 interface EmailDetailProps {
   threadId: string | null;
@@ -20,6 +23,7 @@ const getInitials = (n: string) => n.split(" ").map(w => w[0]).join("").slice(0,
 
 const EmailDetail = ({ threadId, onBack, onReply }: EmailDetailProps) => {
   const state = useMail(s => s);
+  const navigate = useNavigate();
   const msgs = useMemo(() => threadId ? threadMessages(state, threadId) : [], [state, threadId]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [inlineOpen, setInlineOpen] = useState(false);
@@ -87,11 +91,18 @@ const EmailDetail = ({ threadId, onBack, onReply }: EmailDetailProps) => {
                   {m.attachments.length > 0 && (
                     <div className="flex flex-wrap gap-2 mb-3">
                       {m.attachments.map(a => (
-                        <div key={a.id} className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 border border-border text-xs">
+                        <a
+                          key={a.id}
+                          href={a.url ?? "#"}
+                          download={a.name}
+                          onClick={e => { if (!a.url) { e.preventDefault(); toast.error("This attachment has no stored file"); } }}
+                          className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 border border-border text-xs hover:bg-muted transition-colors"
+                        >
                           <Paperclip size={12} className="text-muted-foreground" />
-                          <span>{a.name}</span>
-                          <span className="text-muted-foreground">{Math.round(a.size / 1024)} KB</span>
-                        </div>
+                          <span className="max-w-[200px] truncate">{a.name}</span>
+                          <span className="text-muted-foreground">{formatBytes(a.size)}</span>
+                          <Download size={12} className="text-muted-foreground" />
+                        </a>
                       ))}
                     </div>
                   )}
@@ -100,6 +111,13 @@ const EmailDetail = ({ threadId, onBack, onReply }: EmailDetailProps) => {
                     <button onClick={() => onReply(m, "reply")} className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-border hover:bg-muted"><Reply size={13} /> Reply</button>
                     <button onClick={() => onReply(m, "replyAll")} className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-border hover:bg-muted"><ReplyAll size={13} /> Reply all</button>
                     <button onClick={() => onReply(m, "forward")} className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-border hover:bg-muted"><Forward size={13} /> Forward</button>
+                    <button
+                      onClick={() => navigate(`/contacts?name=${encodeURIComponent(m.fromName)}&email=${encodeURIComponent(m.fromEmail)}`)}
+                      className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-border hover:bg-muted"
+                    >
+                      <UserPlus size={13} />
+                      {state.contacts.some(c => c.email.toLowerCase() === m.fromEmail.toLowerCase()) ? "Update contact" : "Add contact"}
+                    </button>
                   </div>
                 </div>
               )}

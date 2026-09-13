@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Plus, Search, Trash2, Pencil, Mail, X } from "lucide-react";
 import { toast } from "sonner";
 import { useMail, actions, type Contact } from "@/lib/mailStore";
@@ -11,6 +11,7 @@ const emptyForm = { name: "", email: "", notes: "" };
 
 const Contacts = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const contacts = useMail(s => s.contacts);
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<Contact | null>(null);
@@ -27,6 +28,26 @@ const Contacts = () => {
   const openCreate = () => { setForm(emptyForm); setEditing(null); setCreating(true); };
   const openEdit = (c: Contact) => { setForm({ name: c.name, email: c.email, notes: c.notes ?? "" }); setEditing(c); setCreating(true); };
   const close = () => { setCreating(false); setEditing(null); };
+
+  // Auto-fill the contact form when arriving from an email sender.
+  useEffect(() => {
+    const email = searchParams.get("email");
+    if (!email) return;
+    const name = searchParams.get("name") ?? "";
+    const existing = contacts.find(c => c.email.toLowerCase() === email.toLowerCase());
+    if (existing) {
+      setForm({ name: name || existing.name, email: existing.email, notes: existing.notes ?? "" });
+      setEditing(existing);
+    } else {
+      setForm({ name: name || email.split("@")[0], email, notes: "" });
+      setEditing(null);
+    }
+    setCreating(true);
+    searchParams.delete("email");
+    searchParams.delete("name");
+    setSearchParams(searchParams, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const save = () => {
     if (!form.name.trim() || !form.email.trim()) return toast.error("Name and email required");

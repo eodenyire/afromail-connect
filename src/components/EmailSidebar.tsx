@@ -73,6 +73,13 @@ const EmailSidebar = ({ activeView, onViewChange, onCompose }: EmailSidebarProps
           />
         ))}
 
+        <NavRow
+          active={activeView === "queue"}
+          onClick={() => onViewChange("queue")}
+          icon={CalendarClock}
+          label="Delivery queue"
+        />
+
         <div className="mx-2 my-3 border-t border-sidebar-border" />
         <div className="px-3 mb-1"><span className="text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">Labels</span></div>
         {state.labels.map(l => (

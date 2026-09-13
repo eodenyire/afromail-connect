@@ -5,6 +5,7 @@ import EmailList, { type ThreadRow } from "@/components/EmailList";
 import EmailDetail from "@/components/EmailDetail";
 import ComposeEmail, { type ComposeState } from "@/components/ComposeEmail";
 import { CommandPalette } from "@/components/CommandPalette";
+import DeliveryQueue from "@/components/DeliveryQueue";
 import { Menu, Search, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -125,6 +126,9 @@ const Index = () => {
   const handleBulkMarkUnread = () => { actions.toggleRead(bulkIds(), false); setSelectedIds(new Set()); };
   const handleBulkStar = () => { actions.toggleStar(bulkIds()); setSelectedIds(new Set()); };
   const handleBulkDelete = () => { actions.trash(bulkIds()); setSelectedIds(new Set()); if (selectedThreadId && selectedIds.has(selectedThreadId)) setSelectedThreadId(null); };
+  const handleBulkMove = (folderId: string) => { actions.moveToFolder(bulkIds(), folderId); setSelectedIds(new Set()); setSelectedThreadId(null); };
+  const handleBulkApplyLabel = (labelId: string) => { actions.applyLabel(bulkIds(), labelId); setSelectedIds(new Set()); };
+  const handleBulkRemoveLabel = (labelId: string) => { actions.removeLabel(bulkIds(), labelId); setSelectedIds(new Set()); };
 
   useKeyboardShortcuts({
     "c": () => openCompose(),
@@ -154,6 +158,16 @@ const Index = () => {
         />
       </div>
 
+      {activeView === "queue" ? (
+        <div className="flex-1 flex flex-col bg-card overflow-hidden">
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-border md:hidden">
+            <button onClick={() => setSidebarOpen(true)} className="p-1.5 rounded-md hover:bg-muted"><Menu size={20} /></button>
+            <span className="font-semibold text-sm flex-1 truncate">Delivery queue</span>
+          </div>
+          <DeliveryQueue />
+        </div>
+      ) : (
+      <>
       <div className={`flex flex-col w-full md:w-96 border-r border-border bg-card flex-shrink-0 ${selectedThreadId ? "hidden md:flex" : "flex"}`}>
         <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
           <button onClick={() => setSidebarOpen(true)} className="p-1.5 rounded-md hover:bg-muted md:hidden"><Menu size={20} /></button>
@@ -188,12 +202,17 @@ const Index = () => {
           onBulkMarkUnread={handleBulkMarkUnread}
           onBulkStar={handleBulkStar}
           onBulkDelete={handleBulkDelete}
+          onBulkMove={handleBulkMove}
+          onBulkApplyLabel={handleBulkApplyLabel}
+          onBulkRemoveLabel={handleBulkRemoveLabel}
         />
       </div>
 
       <div className={`flex-1 flex flex-col bg-card ${selectedThreadId ? "flex" : "hidden md:flex"}`}>
         <EmailDetail threadId={selectedThreadId} onBack={() => setSelectedThreadId(null)} onReply={handleReply} />
       </div>
+      </>
+      )}
 
       <ComposeEmail open={composeOpen} onClose={() => setComposeOpen(false)} initial={composeInitial} />
       <CommandPalette onCompose={() => openCompose()} onFolderChange={setActiveView} />
