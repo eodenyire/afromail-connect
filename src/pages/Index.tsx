@@ -157,6 +157,16 @@ const Index = () => {
         />
       </div>
 
+      {activeView === "queue" ? (
+        <div className="flex-1 flex flex-col bg-card overflow-hidden">
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-border md:hidden">
+            <button onClick={() => setSidebarOpen(true)} className="p-1.5 rounded-md hover:bg-muted"><Menu size={20} /></button>
+            <span className="font-semibold text-sm flex-1 truncate">Delivery queue</span>
+          </div>
+          <DeliveryQueue />
+        </div>
+      ) : (
+      <>
       <div className={`flex flex-col w-full md:w-96 border-r border-border bg-card flex-shrink-0 ${selectedThreadId ? "hidden md:flex" : "flex"}`}>
         <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
           <button onClick={() => setSidebarOpen(true)} className="p-1.5 rounded-md hover:bg-muted md:hidden"><Menu size={20} /></button>
