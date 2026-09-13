@@ -191,6 +191,9 @@ const Index = () => {
           onBulkMarkUnread={handleBulkMarkUnread}
           onBulkStar={handleBulkStar}
           onBulkDelete={handleBulkDelete}
+          onBulkMove={handleBulkMove}
+          onBulkApplyLabel={handleBulkApplyLabel}
+          onBulkRemoveLabel={handleBulkRemoveLabel}
         />
       </div>
 
