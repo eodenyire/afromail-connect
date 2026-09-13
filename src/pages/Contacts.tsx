@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Plus, Search, Trash2, Pencil, Mail, X } from "lucide-react";
 import { toast } from "sonner";
 import { useMail, actions, type Contact } from "@/lib/mailStore";
