@@ -11,6 +11,7 @@ const emptyForm = { name: "", email: "", notes: "" };
 
 const Contacts = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const contacts = useMail(s => s.contacts);
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<Contact | null>(null);
