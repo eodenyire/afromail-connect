@@ -5,6 +5,7 @@ import EmailList, { type ThreadRow } from "@/components/EmailList";
 import EmailDetail from "@/components/EmailDetail";
 import ComposeEmail, { type ComposeState } from "@/components/ComposeEmail";
 import { CommandPalette } from "@/components/CommandPalette";
+import DeliveryQueue from "@/components/DeliveryQueue";
 import { Menu, Search, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
